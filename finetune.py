@@ -1,6 +1,17 @@
 import os
-from pathlib import Path
+import enum
+
+
+
 import warnings
+
+os.environ['MKL_SERVICE_FORCE_INTEL'] = '1'
+os.environ['MUJOCO_GL'] = 'osmesa'
+
+os.environ['MESA_GL_VERSION_OVERRIDE'] = '3.3'
+os.environ['MESA_GLSL_VERSION_OVERRIDE'] = '330'
+
+from pathlib import Path
 from time import sleep
 
 from dm_env import specs
@@ -20,9 +31,6 @@ warnings.filterwarnings('ignore', category=DeprecationWarning)
 
 
 
-os.environ['MKL_SERVICE_FORCE_INTEL'] = '1'
-os.environ['MUJOCO_GL'] = 'egl'
-
 
 
 torch.backends.cudnn.benchmark = True
@@ -39,6 +47,10 @@ def make_agent(obs_type, obs_spec, action_spec, num_expl_steps, cfg):
 class Workspace:
     def __init__(self, cfg):
         self.work_dir = Path.cwd()
+        self.buffer_dir = self.work_dir
+        if cfg.buffer_dir != "":
+            self.buffer_dir = Path(cfg.buffer_dir)
+
         print(f'workspace: {self.work_dir}')
 
         self.cfg = cfg
@@ -53,7 +65,7 @@ class Workspace:
                 cfg.obs_type,
                 str(cfg.seed),
                 "finetune"])
-            wandb.init(project="urlb",group=cfg.agent.name,name=exp_name)
+            wandb.init(project="urlb", entity="urlb-gqn-test", group=cfg.group_name,name=exp_name)
 
         self.logger = Logger(self.work_dir,
                              use_tb=cfg.use_tb,
@@ -87,14 +99,16 @@ class Workspace:
 
         # create data storage
         self.replay_storage = ReplayBufferStorage(data_specs, meta_specs,
-                                                  self.work_dir / 'buffer')
+                                                  self.buffer_dir / 'buffer')
+        # self.replay_storage_pretrain = ReplayBufferStorage(data_specs, meta_specs,
+                                                  # self.buffer_dir / 'buffer')
 
         # create replay buffer
         self.replay_loader = make_replay_loader(self.replay_storage,
                                                 cfg.replay_buffer_size,
                                                 cfg.batch_size,
                                                 cfg.replay_buffer_num_workers,
-                                                False, cfg.nstep, cfg.discount)
+                                                cfg.save_buffer, cfg.nstep, cfg.discount)
         self._replay_iter = None
 
         # create video recorders
@@ -221,8 +235,14 @@ class Workspace:
 
             # try to update the agent
             if not seed_until_step(self.global_step):
-                metrics = self.agent.update(self.replay_iter, self.global_step)
-                self.logger.log_metrics(metrics, self.global_frame, ty='train')
+                if self.cfg.batch_sched == 'linear':
+                    batches_per_step = self.get_num_of_batches_per_update(self.global_step)
+                else:
+                    batches_per_step = self.get_bathch_count_linear(self.global_step)
+                #print(f"doing {batches_per_step} batches per this step ...")
+                for _ in range(int(batches_per_step)):
+                    metrics = self.agent.update(self.replay_iter, self.global_step)
+                    self.logger.log_metrics(metrics, self.global_frame, ty='train')
 
             # take env step
             time_step = self.train_env.step(action)
@@ -232,11 +252,20 @@ class Workspace:
             episode_step += 1
             self._global_step += 1
 
+    def get_bathch_count_linear(self, env_step:int):
+        iter_num = -(env_step/500000) + 2.5
+        return np.rint(2*iter_num)
+
+    def get_num_of_batches_per_update(self, env_step: int):
+        iter_num = 548076/(env_step + 96152)
+        return np.rint(2*iter_num)
+
     def load_snapshot(self):
         snapshot_base_dir = Path(self.cfg.snapshot_base_dir)
         domain, _ = self.cfg.task.split('_', 1)
         # snapshot_dir = snapshot_base_dir / self.cfg.obs_type / domain / self.cfg.agent.name
-        snapshot_dir = snapshot_base_dir / self.cfg.obs_type / domain / "icm"
+        snapshot_dir = snapshot_base_dir / self.cfg.obs_type / domain / self.cfg.pretrained_agent
+        # snapshot_dir = snapshot_base_dir / self.cfg.obs_type / domain / "icm"
 
         def try_load(seed):
             snapshot = snapshot_dir / str(

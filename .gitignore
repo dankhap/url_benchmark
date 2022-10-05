@@ -1,3 +1,18 @@
 
 __pycache__
 rerun_snapshot/states/walker/icm/1
+**/.vimspector.json
+
+**/__pycache__/
+
+exp_local/
+icm_buffer/
+icm_quad_buffer/
+rnd_quad_buffer/
+rnd_walker_buffer/
+
+
+models/states/quadruped
+models/states/walker/icm
+models/states/walker/rnd
+.nvim/dap.json
