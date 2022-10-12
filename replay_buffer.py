@@ -208,6 +208,7 @@ class BufferedReplayBuffer(IterableDataset):
                 except Exception as _:
                     yield self.exploration_buffer._sample()
             else:
+                self.replay_buffer._samples_since_last_fetch += 1
                 yield self.exploration_buffer._sample()
 
 def _worker_init_fn(worker_id):
