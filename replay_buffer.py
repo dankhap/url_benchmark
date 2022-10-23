@@ -170,17 +170,59 @@ class ReplayBuffer(IterableDataset):
             yield self._sample()
 
 
+
+def get_num_of_batches(x):
+    iter_num = 548076/(x+96152)
+    return iter_num
+
+def create_batch_generator(batch_size):
+    def build_batch_sample_order():
+        for step_i in range(0, 1000000, 2):
+            batch_steps = int(np.rint(get_num_of_batches(step_i)))
+            for batch_i in range(batch_steps):
+                batch_sources = np.random.choice([False,True], size=(batch_size), p=[step_i/1e6, 1-step_i/1e6]) # False - real, True - pretrain
+                for bit in batch_sources:
+                    if step_i < 4:
+                        yield True
+                    else:
+                        yield bit
+        while True:
+            yield False
+
+    return build_batch_sample_order
+
+class BufferedReplayBuffer(IterableDataset):
+    def __init__(self, storage, exploration_buffer, max_size, num_workers, nstep, discount,
+                 fetch_every, save_snapshot):
+        self.replay_buffer = ReplayBuffer(storage, max_size, num_workers, nstep, discount,
+                 fetch_every, save_snapshot)
+        self.exploration_buffer = ReplayBuffer(exploration_buffer, max_size, num_workers, nstep, discount,
+                 int(4e6), save_snapshot) #dont fetch static pretrain buffer
+        self.sample_order = iter(create_batch_generator(1028)())
+
+    def __iter__(self) :
+        while True:
+            if not next(self.sample_order) and self.replay_buffer._storage._num_transitions > 0:
+                try:
+                    yield self.replay_buffer._sample()
+                except Exception as _:
+                    yield self.exploration_buffer._sample()
+            else:
+                self.replay_buffer._samples_since_last_fetch += 1
+                yield self.exploration_buffer._sample()
+
 def _worker_init_fn(worker_id):
     seed = np.random.get_state()[1][0] + worker_id
     np.random.seed(seed)
     random.seed(seed)
 
 
-def make_replay_loader(storage, max_size, batch_size, num_workers,
+def make_replay_loader(storage, exploration_buffer, max_size, batch_size, num_workers,
                        save_snapshot, nstep, discount):
     max_size_per_worker = max_size // max(1, num_workers)
 
-    iterable = ReplayBuffer(storage,
+    iterable = BufferedReplayBuffer(storage,
+                            exploration_buffer,
                             max_size_per_worker,
                             num_workers,
                             nstep,
