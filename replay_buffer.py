@@ -217,6 +217,26 @@ def _worker_init_fn(worker_id):
     random.seed(seed)
 
 
+
+def make_orig_replay_loader(storage, max_size, batch_size, num_workers,
+                       save_snapshot, nstep, discount):
+    max_size_per_worker = max_size // max(1, num_workers)
+
+    iterable = ReplayBuffer(storage,
+                            max_size_per_worker,
+                            num_workers,
+                            nstep,
+                            discount,
+                            fetch_every=1000,
+                            save_snapshot=save_snapshot)
+
+    loader = torch.utils.data.DataLoader(iterable,
+                                         batch_size=batch_size,
+                                         num_workers=num_workers,
+                                         pin_memory=True,
+                                         worker_init_fn=_worker_init_fn)
+    return loader
+
 def make_replay_loader(storage, exploration_buffer, max_size, batch_size, num_workers,
                        save_snapshot, nstep, discount):
     max_size_per_worker = max_size // max(1, num_workers)

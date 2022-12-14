@@ -22,7 +22,7 @@ snapshot_ts: 100000
 snapshot_base_dir: /code/url_benchmark/models/
 # replay buffer
 replay_buffer_size: 1000000
-replay_buffer_num_workers: 4
+replay_buffer_num_workers: 1
 batch_size: ${agent.batch_size}
 nstep: ${agent.nstep}
 update_encoder: false # can be either true or false depending if we want to fine-tune encoder
@@ -37,6 +37,8 @@ use_wandb: true
 experiment: exp
 group_name: ddpg_rebuffered_quad_run
 buffer_dir: /code/url_benchmark/exp_local/2022.08.11/135826_icm/
+double_buffer: false
+# buffer_dir: /code/url_benchmark/exp_local/2022.08.11/test_double_buffer/
 # buffer_dir: /code/url_benchmark/exp_local/2022.09.29/quad_run_buffer/
 # buffer_dir: /code/url_benchmark/exp_local/2022.09.29/quad_jump_buffer/
 # buffer_dir: /code/url_benchmark/exp_local/2022.08.13/201155_icm/

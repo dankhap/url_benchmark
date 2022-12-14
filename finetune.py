@@ -21,7 +21,7 @@ import torch
 
 import dmc
 from logger import Logger
-from replay_buffer import ReplayBufferStorage, make_replay_loader
+from replay_buffer import ReplayBufferStorage, make_orig_replay_loader, make_replay_loader
 import utils
 from video import TrainVideoRecorder, VideoRecorder
 
@@ -65,7 +65,7 @@ class Workspace:
                 cfg.obs_type,
                 str(cfg.seed),
                 "finetune"])
-            wandb.init(project="urlb", entity="urlb-gqn-test", group=cfg.group_name,name=exp_name)
+            wandb.init(project="urlb", entity="urlb-gqn-test", group=cfg.group_name,name=exp_name, config=cfg)
 
         self.logger = Logger(self.work_dir,
                              use_tb=cfg.use_tb,
@@ -99,13 +99,14 @@ class Workspace:
 
         # create data storage
         self.replay_storage = ReplayBufferStorage(data_specs, meta_specs,
-                                                  self.work_dir / 'buffer')
-        self.replay_storage_pretrain = ReplayBufferStorage(data_specs, meta_specs,
                                                   self.buffer_dir / 'buffer')
+        # self.replay_storage = ReplayBufferStorage(data_specs, meta_specs,
+        #                                           self.work_dir / 'buffer')
+        # self.replay_storage_pretrain = ReplayBufferStorage(data_specs, meta_specs,
+        #                                           self.buffer_dir / 'buffer')
 
         # create replay buffer
-        self.replay_loader = make_replay_loader(self.replay_storage,
-                                                self.replay_storage_pretrain,
+        self.replay_loader = make_orig_replay_loader(self.replay_storage,
                                                 cfg.replay_buffer_size,
                                                 cfg.batch_size,
                                                 cfg.replay_buffer_num_workers,
