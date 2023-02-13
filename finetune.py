@@ -238,10 +238,9 @@ class Workspace:
             # try to update the agent
             if not seed_until_step(self.global_step):
                 if self.cfg.batch_sched == 'linear':
-                    batches_per_step = self.get_num_of_batches_per_update(self.global_step)
-                else:
                     batches_per_step = self.get_bathch_count_linear(self.global_step)
-                #print(f"doing {batches_per_step} batches per this step ...")
+                else:
+                    batches_per_step = self.get_num_of_batches_per_update(self.global_step)
                 for _ in range(int(batches_per_step)):
                     metrics = self.agent.update(self.replay_iter, self.global_step)
                     self.logger.log_metrics(metrics, self.global_frame, ty='train')
