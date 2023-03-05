@@ -193,12 +193,12 @@ def create_batch_generator(batch_size):
 
 class BufferedReplayBuffer(IterableDataset):
     def __init__(self, storage, exploration_buffer, max_size, num_workers, nstep, discount,
-                 fetch_every, save_snapshot):
+                 fetch_every, save_snapshot, batch_size):
         self.replay_buffer = ReplayBuffer(storage, max_size, num_workers, nstep, discount,
                  fetch_every, save_snapshot)
         self.exploration_buffer = ReplayBuffer(exploration_buffer, max_size, num_workers, nstep, discount,
                  int(4e6), save_snapshot) #dont fetch static pretrain buffer
-        self.sample_order = iter(create_batch_generator(1028)())
+        self.sample_order = iter(create_batch_generator(batch_size)())
 
     def __iter__(self) :
         while True:
@@ -247,6 +247,7 @@ def make_replay_loader(storage, exploration_buffer, max_size, batch_size, num_wo
                             num_workers,
                             nstep,
                             discount,
+                            batch_size=batch_size,
                             fetch_every=1000,
                             save_snapshot=save_snapshot)
 

@@ -37,9 +37,9 @@ use_wandb: true
 experiment: exp
 group_name: ddpg_rebuffered_quad_run
 # buffer_dir: /code/url_benchmark/exp_local/2022.08.11/135826_icm/
-double_buffer: false
-buffer_dir: "" 
-# buffer_dir: /code/url_benchmark/exp_local/2022.08.11/test_double_buffer/
+double_buffer: true
+# buffer_dir: "" 
+buffer_dir: /code/url_benchmark/exp_local/2022.08.11/test_double_buffer/
 # buffer_dir: /code/url_benchmark/exp_local/2022.09.29/quad_run_buffer/
 # buffer_dir: /code/url_benchmark/exp_local/2022.09.29/quad_jump_buffer/
 # buffer_dir: /code/url_benchmark/exp_local/2022.08.13/201155_icm/
