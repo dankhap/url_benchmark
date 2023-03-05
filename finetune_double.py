@@ -173,6 +173,7 @@ class Workspace:
             log('step', self.global_step)
 
     def train(self):
+        print("started training double_buffer")
         # predicates
         train_until_step = utils.Until(self.cfg.num_train_frames,
                                        self.cfg.action_repeat)
@@ -303,7 +304,7 @@ class Workspace:
 
 @hydra.main(config_path='.', config_name='finetune')
 def main(cfg):
-    from finetune import Workspace as W
+    from finetune_double import Workspace as W
     root_dir = Path.cwd()
     workspace = W(cfg)
     snapshot = root_dir / 'snapshot.pt'
