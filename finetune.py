@@ -100,11 +100,6 @@ class Workspace:
         # create data storage
         self.replay_storage = ReplayBufferStorage(data_specs, meta_specs,
                                                   self.buffer_dir / 'buffer')
-        # self.replay_storage = ReplayBufferStorage(data_specs, meta_specs,
-        #                                           self.work_dir / 'buffer')
-        # self.replay_storage_pretrain = ReplayBufferStorage(data_specs, meta_specs,
-        #                                           self.buffer_dir / 'buffer')
-
         # create replay buffer
         self.replay_loader = make_orig_replay_loader(self.replay_storage,
                                                 cfg.replay_buffer_size,
