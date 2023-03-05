@@ -21,7 +21,7 @@ from dm_env import specs
 import dmc
 import utils
 from logger import Logger
-from replay_buffer import ReplayBufferStorage, make_replay_loader
+from replay_buffer import ReplayBufferStorage, make_orig_replay_loader, make_replay_loader
 from video import TrainVideoRecorder, VideoRecorder
 
 torch.backends.cudnn.benchmark = True
@@ -84,11 +84,13 @@ class Workspace:
                                                   self.work_dir / 'buffer')
 
         # create replay buffer
-        self.replay_loader = make_replay_loader(self.replay_storage,
+        self.replay_loader = make_orig_replay_loader(self.replay_storage,
                                                 cfg.replay_buffer_size,
                                                 cfg.batch_size,
                                                 cfg.replay_buffer_num_workers,
-                                                cfg.save_buffer, cfg.nstep, cfg.discount)
+                                                cfg.save_buffer,
+                                                cfg.nstep,
+                                                cfg.discount)
         self._replay_iter = None
 
         # create video recorders
