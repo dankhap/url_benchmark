@@ -232,9 +232,12 @@ class Workspace:
 
             # try to update the agent
             if not seed_until_step(self.global_step):
+
+
+                batches_per_step = 1
                 if self.cfg.batch_sched == 'linear':
                     batches_per_step = self.get_bathch_count_linear(self.global_step)
-                else:
+                elif self.cfg.batch_sched == 'fast':
                     batches_per_step = self.get_num_of_batches_per_update(self.global_step)
                 for _ in range(int(batches_per_step)):
                     metrics = self.agent.update(self.replay_iter, self.global_step)
