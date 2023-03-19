@@ -42,6 +42,10 @@ class Workspace:
         self.work_dir = Path.cwd()
         print(f'workspace: {self.work_dir}')
 
+        self.buffer_dir = self.work_dir
+        if cfg.buffer_dir != "":
+            self.buffer_dir = Path(cfg.buffer_dir)
+
         self.cfg = cfg
         utils.set_seed_everywhere(cfg.seed)
         self.device = torch.device(cfg.device)
@@ -236,7 +240,7 @@ class Workspace:
             torch.save(payload, f)
 
 
-@hydra.main(config_path='.', config_name='pretrain')
+@hydra.main(config_path='/code/url_benchmark/', config_name='pretrain')
 def main(cfg):
     from pretrain import Workspace as W
     os.environ["MUJOCO_GL"] = "egl"
