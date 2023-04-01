@@ -15,3 +15,4 @@ models/states/walker/rnd
 .nvim/dap.json
 icm_walker_pixel_buffer/buffer
 models/pixels
+icm_quad_pixel_buffer/buffer
