@@ -295,7 +295,7 @@ class Workspace:
         return None
 
 
-@hydra.main(config_path='.', config_name='finetune')
+@hydra.main(config_path='/code/url_benchmark/', config_name='finetune')
 def main(cfg):
     from finetune import Workspace as W
     root_dir = Path.cwd()
