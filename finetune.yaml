@@ -39,7 +39,6 @@ group_name: ddpg_rebuffered_quad_run
 # buffer_dir: /code/url_benchmark/exp_local/2022.08.11/135826_icm/
 double_buffer: false
 buffer_dir: "" 
-# buffer_dir: "/code/url_benchmark/icm_walker_pixel_buffer/" 
 # buffer_dir: /code/url_benchmark/exp_local/2022.08.11/test_double_buffer/
 # buffer_dir: /code/url_benchmark/exp_local/2022.09.29/quad_run_buffer/
 # buffer_dir: /code/url_benchmark/exp_local/2022.09.29/quad_jump_buffer/
