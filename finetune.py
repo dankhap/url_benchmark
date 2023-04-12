@@ -49,7 +49,9 @@ class Workspace:
         self.work_dir = Path.cwd()
         self.buffer_dir = self.work_dir
         if cfg.buffer_dir != "":
+            print(f'buffer_dir: {cfg.buffer_dir}')
             copy_tree(cfg.buffer_dir, str(self.work_dir))
+            print("finished copying buffer")
             # self.buffer_dir = Path(cfg.buffer_dir)
 
         print(f'workspace: {self.work_dir}')
