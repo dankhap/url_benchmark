@@ -1,6 +1,6 @@
 import os
 import enum
-
+from distutils.dir_util import copy_tree
 
 
 import warnings
@@ -49,7 +49,8 @@ class Workspace:
         self.work_dir = Path.cwd()
         self.buffer_dir = self.work_dir
         if cfg.buffer_dir != "":
-            self.buffer_dir = Path(cfg.buffer_dir)
+            copy_tree(cfg.buffer_dir, str(self.work_dir))
+            # self.buffer_dir = Path(cfg.buffer_dir)
 
         print(f'workspace: {self.work_dir}')
 
