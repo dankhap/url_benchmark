@@ -41,6 +41,7 @@ class Workspace:
     def __init__(self, cfg):
         self.work_dir = Path.cwd()
         print(f'workspace: {self.work_dir}')
+        print(f'slurm job id: {os.environ["SLURM_JOB_ID"]}')
 
         self.buffer_dir = self.work_dir
         if cfg.buffer_dir != "":

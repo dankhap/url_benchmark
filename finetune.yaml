@@ -48,6 +48,8 @@ buffer_dir: ""
 # buffer_dir: /code/url_benchmark/exp_local/2022.08.18/124112_rnd_quad_run_buf/
 #buffer_dir: /code/url_benchmark/exp_local/2022.08.18/124119_rnd_walker_flip_buf/
 #buffer_dir: /code/url_benchmark/exp_local/2022.08.18/124119_rnd_walker_run_buf/
+#buffer_dir: "/code/url_benchmark/icm_quad_pixel_buffer"
+#buffer_dir: "/code/url_benchmark/icm_walker_pixel_buffer"
 batch_sched: normal
 save_buffer: true
 

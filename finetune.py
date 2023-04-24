@@ -55,6 +55,7 @@ class Workspace:
             # self.buffer_dir = Path(cfg.buffer_dir)
 
         print(f'workspace: {self.work_dir}')
+        print(f'slurm job id: {os.environ["SLURM_JOB_ID"]}')
 
         self.cfg = cfg
         utils.set_seed_everywhere(cfg.seed)
