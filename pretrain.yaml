@@ -36,10 +36,13 @@ use_wandb: true
 experiment: exp
 group_name: test
 save_buffer: true
-# buffer_dir: "/code/url_benchmark/icm_walker_pixel_buffer"
-# buffer_dir: "/code/url_benchmark/icm_quad_pixel_buffer"
-# buffer_dir: "/code/url_benchmark/rnd_walker_pixel_buffer"
-buffer_dir: "/code/url_benchmark/rnd_quad_pixel_buffer"
+#buffer_dir: "/code/url_benchmark/icm_walker_pixel_buffer"
+#buffer_dir: "/code/url_benchmark/icm_quad_pixel_buffer"
+#buffer_dir: "/code/url_benchmark/icm_quad_pixel_buffer2"
+#buffer_dir: "/code/url_benchmark/icm_quad_pixel_buffer3"
+#buffer_dir: "/code/url_benchmark/rnd_walker_pixel_buffer"
+buffer_dir: "/code/url_benchmark/rnd_walker_pixel_buffer2"
+#buffer_dir: "/code/url_benchmark/rnd_quad_pixel_buffer"
 
 hydra:
   run:

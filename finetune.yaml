@@ -17,7 +17,7 @@ num_seed_frames: 8000 #rebuffered version 1, original was 8000
 eval_every_frames: 10000
 num_eval_episodes: 10
 # pretrained
-snapshot_ts: 100000
+snapshot_ts: 2000000
 # default snapshot_base_dir: ./pretrained_models
 snapshot_base_dir: /code/url_benchmark/models/
 # replay buffer
@@ -38,6 +38,7 @@ experiment: exp
 group_name: ddpg_rebuffered_quad_run
 # buffer_dir: /code/url_benchmark/exp_local/2022.08.11/135826_icm/
 double_buffer: false
+load_only_encoder: false
 buffer_dir: "" 
 # buffer_dir: /code/url_benchmark/exp_local/2022.08.11/test_double_buffer/
 # buffer_dir: /code/url_benchmark/exp_local/2022.09.29/quad_run_buffer/

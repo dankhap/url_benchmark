@@ -138,6 +138,7 @@ class DDPGAgent:
                  init_critic,
                  use_tb,
                  use_wandb,
+                 load_only_encoder=False,
                  update_encoder=True,
                  meta_dim=0):
         self.reward_free = reward_free
@@ -157,6 +158,9 @@ class DDPGAgent:
         self.init_critic = init_critic
         self.feature_dim = feature_dim
         self.solved_meta = None
+        self.load_only_encoder = load_only_encoder
+
+        print('load_only_encoder', load_only_encoder)
 
         # models
         if obs_type == 'pixels':
@@ -199,7 +203,8 @@ class DDPGAgent:
     def init_from(self, other):
         # copy parameters over
         utils.hard_update_params(other.encoder, self.encoder)
-        utils.hard_update_params(other.actor, self.actor)
+        if not self.load_only_encoder:
+            utils.hard_update_params(other.actor, self.actor)
         if self.init_critic:
             utils.hard_update_params(other.critic.trunk, self.critic.trunk)
 

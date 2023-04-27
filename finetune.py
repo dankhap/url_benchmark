@@ -36,11 +36,12 @@ warnings.filterwarnings('ignore', category=DeprecationWarning)
 torch.backends.cudnn.benchmark = True
 
 
-def make_agent(obs_type, obs_spec, action_spec, num_expl_steps, cfg):
+def make_agent(obs_type, obs_spec, action_spec, num_expl_steps, load_only_encoder, cfg):
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
     cfg.action_shape = action_spec.shape
     cfg.num_expl_steps = num_expl_steps
+    cfg.load_only_encoder = load_only_encoder
     return hydra.utils.instantiate(cfg)
 
 
@@ -86,6 +87,7 @@ class Workspace:
                                 self.train_env.observation_spec(),
                                 self.train_env.action_spec(),
                                 cfg.num_seed_frames // cfg.action_repeat,
+                                cfg.load_only_encoder,
                                 cfg.agent)
 
         # initialize from pretrained

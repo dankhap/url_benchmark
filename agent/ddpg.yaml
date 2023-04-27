@@ -20,3 +20,4 @@ nstep: 3
 batch_size: 1024 # 256 for pixels
 init_critic: true
 update_encoder: ${update_encoder}
+load_only_encoder: ${load_only_encoder}
