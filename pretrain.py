@@ -46,6 +46,9 @@ class Workspace:
         self.buffer_dir = self.work_dir
         if cfg.buffer_dir != "":
             self.buffer_dir = Path(cfg.buffer_dir)
+            # create the directory if it doesn't exist
+            self.buffer_dir.mkdir(parents=True, exist_ok=True)
+
 
         self.cfg = cfg
         utils.set_seed_everywhere(cfg.seed)
