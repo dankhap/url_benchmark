@@ -65,7 +65,7 @@ class RE3Agent(DDPGAgent):
     def __init__(self, rnd_rep_dim, update_encoder, beta: float= 0.05,
                  kappa: float = 0.000025,
                  latent_dim: int =128,
-                 k: int = 5,
+                 k: int = 3,
                  average_entropy: bool = False,
                  **kwargs):
         super().__init__(**kwargs)
@@ -88,40 +88,41 @@ class RE3Agent(DDPGAgent):
         self.rnd.train()
 
 
-    def compute_irs(self, samples: Dict, step: int = 0) -> th.Tensor:
-            """Compute the intrinsic rewards for current samples.
+    def compute_irs(self, samples, step = 0) -> torch.Tensor:
+        """Compute the intrinsic rewards for current samples.
 
-            Args:
-                samples (Dict): The collected samples. A python dict like
-                    {obs (n_steps, n_envs, *obs_shape) <class 'th.Tensor'>,
-                    actions (n_steps, n_envs, *action_shape) <class 'th.Tensor'>,
-                    rewards (n_steps, n_envs) <class 'th.Tensor'>,
-                    next_obs (n_steps, n_envs, *obs_shape) <class 'th.Tensor'>}.
-                step (int): The global training step.
+        Args:
+            samples (Dict): The collected samples. A python dict like
+                {obs (n_steps, n_envs, *obs_shape) <class 'torch.Tensor'>,
+                actions (n_steps, n_envs, *action_shape) <class 'torch.Tensor'>,
+                rewards (n_steps, n_envs) <class 'torch.Tensor'>,
+                next_obs (n_steps, n_envs, *obs_shape) <class 'torch.Tensor'>}.
+            step (int): The global training step.
 
-            Returns:
-                The intrinsic rewards.
-            """
-            # compute the weighting coefficient of timestep t
-            beta_t = self._beta * np.power(1.0 - self._kappa, step)
-            num_steps = samples["obs"].size()[0]
-            num_envs = samples["obs"].size()[1]
-            obs_tensor = samples["obs"].to(self._device)
+        Returns:
+            The intrinsic rewards.
+        """
+        # compute the weighting coefficient of timestep t
+        beta_t = self._beta * np.power(1.0 - self._kappa, step)
+        num_steps = samples["obs"].size()[0]
+        num_envs = samples["obs"].size()[1]
+        obs_tensor = samples["obs"].to(self._device)
 
-            intrinsic_rewards = th.zeros(size=(num_steps, num_envs)).to(self._device)
+        intrinsic_rewards = torch.zeros(size=(num_steps, num_envs)).to(self._device)
 
-            with th.no_grad():
-                for i in range(num_envs):
-                    src_feats = self.random_encoder(obs_tensor[:, i])
-                    dist = th.linalg.vector_norm(src_feats.unsqueeze(1) - src_feats, ord=2, dim=2)
-                    if self.average_entropy:
-                        for sub_k in range(self.k):
-                            intrinsic_rewards[:, i] += th.log(th.kthvalue(dist, sub_k + 1, dim=1).values + 1.0)
-                        intrinsic_rewards[:, i] /= self.k
-                    else:
-                        intrinsic_rewards[:, i] = th.log(th.kthvalue(dist, self.k + 1, dim=1).values + 1.0)
+        with torch.no_grad():
+            for i in range(num_envs):
+                src_feats = self.random_encoder(obs_tensor[:, i])
+                dist = torch.linalg.vector_norm(src_feats.unsqueeze(1) - src_feats, ord=2, dim=2)
+                if self.average_entropy:
+                    for sub_k in range(self.k):
+                        intrinsic_rewards[:, i] += torch.log(torch.kthvalue(dist, sub_k + 1, dim=1).values + 1.0)
+                    intrinsic_rewards[:, i] /= self.k
+                else:
+                    intrinsic_rewards[:, i] = torch.log(torch.kthvalue(dist, self.k + 1, dim=1).values + 1.0)
 
-            return intrinsic_rewards * beta_t
+        return intrinsic_rewards * beta_t
+
     def update_rnd(self, obs, step):
         metrics = dict()
 

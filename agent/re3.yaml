@@ -1,6 +1,6 @@
 # @package agent
-_target_: agent.rnd.RNDAgent
-name: rnd
+_target_: agent.re3.RE3Agent
+name: re3
 reward_free: ${reward_free}
 obs_type: ??? # to be specified later
 obs_shape: ??? # to be specified later
