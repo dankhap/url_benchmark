@@ -23,26 +23,10 @@ class RE3(nn.Module):
                  average_entropy: bool = False,
                  clip_val=5.):
         super().__init__()
-        self.clip_val = clip_val
-        self.aug = aug
 
-        if obs_type == "pixels":
-            self.normalize_obs = nn.BatchNorm2d(obs_shape[0], affine=False)
-        else:
-            self.normalize_obs = nn.BatchNorm1d(obs_shape[0], affine=False)
+        self.rnd_enc = nn.Sequential(encoder, nn.Linear(obs_dim, hidden_dim), nn.LayerNorm(hidden_dim))
 
-        self.predictor = nn.Sequential(encoder, nn.Linear(obs_dim, hidden_dim),
-                                       nn.ReLU(),
-                                       nn.Linear(hidden_dim, hidden_dim),
-                                       nn.ReLU(),
-                                       nn.Linear(hidden_dim, rnd_rep_dim))
-        self.target = nn.Sequential(copy.deepcopy(encoder),
-                                    nn.Linear(obs_dim, hidden_dim), nn.ReLU(),
-                                    nn.Linear(hidden_dim, hidden_dim),
-                                    nn.ReLU(),
-                                    nn.Linear(hidden_dim, rnd_rep_dim))
-
-        for param in self.target.parameters():
+        for param in self.end_enc.parameters():
             param.requires_grad = False
 
         self.k = k
@@ -52,13 +36,8 @@ class RE3(nn.Module):
 
 
     def forward(self, obs):
-        obs = self.aug(obs)
-        obs = self.normalize_obs(obs)
-        obs = torch.clamp(obs, -self.clip_val, self.clip_val)
-        prediction, target = self.predictor(obs), self.target(obs)
-        prediction_error = torch.square(target.detach() - prediction).mean(
-            dim=-1, keepdim=True)
-        return prediction_error
+        features = self.rnd_enc(obs)
+        return features
 
 
 class RE3Agent(DDPGAgent):
@@ -69,7 +48,7 @@ class RE3Agent(DDPGAgent):
                  average_entropy: bool = False,
                  **kwargs):
         super().__init__(**kwargs)
-        self.rnd_scale = rnd_scale
+        self.rnd_scale = 1
         self.update_encoder = update_encoder
         self.beta = beta
         self.kappa = kappa
@@ -106,13 +85,13 @@ class RE3Agent(DDPGAgent):
         beta_t = self._beta * np.power(1.0 - self._kappa, step)
         num_steps = samples["obs"].size()[0]
         num_envs = samples["obs"].size()[1]
-        obs_tensor = samples["obs"].to(self._device)
+        # obs_tensor = samples["obs"].to(self._device)
 
         intrinsic_rewards = torch.zeros(size=(num_steps, num_envs)).to(self._device)
 
         with torch.no_grad():
             for i in range(num_envs):
-                src_feats = self.random_encoder(obs_tensor[:, i])
+                src_feats = self.rnd(obs_tensor[:, i])
                 dist = torch.linalg.vector_norm(src_feats.unsqueeze(1) - src_feats, ord=2, dim=2)
                 if self.average_entropy:
                     for sub_k in range(self.k):

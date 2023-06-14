@@ -25,3 +25,7 @@ icm_walker_pixel_buffer2/buffer
 icm_quad_pixel_buffer4/buffer
 rnd_quad_pixel_buffer4/buffer
 rnd_walker_pixel_buffer3/buffer
+icm_quad_pixel_buffer5/buffer
+icm_walker_pixel_buffer4/buffer
+rnd_quad_pixel_buffer5/buffer
+rnd_walker_pixel_buffer4/buffer
