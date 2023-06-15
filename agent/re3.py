@@ -24,9 +24,9 @@ class RE3(nn.Module):
                  clip_val=5.):
         super().__init__()
 
-        self.rnd_enc = nn.Sequential(encoder, nn.Linear(obs_dim, hidden_dim), nn.LayerNorm(hidden_dim))
+        self.rnd_enc = nn.Sequential(encoder, nn.Linear(obs_dim, rnd_rep_dim), nn.LayerNorm(rnd_rep_dim))
 
-        for param in self.end_enc.parameters():
+        for param in self.rnd_enc.parameters():
             param.requires_grad = False
 
         self.k = k
@@ -67,41 +67,6 @@ class RE3Agent(DDPGAgent):
         self.rnd.train()
 
 
-    def compute_irs(self, samples, step = 0) -> torch.Tensor:
-        """Compute the intrinsic rewards for current samples.
-
-        Args:
-            samples (Dict): The collected samples. A python dict like
-                {obs (n_steps, n_envs, *obs_shape) <class 'torch.Tensor'>,
-                actions (n_steps, n_envs, *action_shape) <class 'torch.Tensor'>,
-                rewards (n_steps, n_envs) <class 'torch.Tensor'>,
-                next_obs (n_steps, n_envs, *obs_shape) <class 'torch.Tensor'>}.
-            step (int): The global training step.
-
-        Returns:
-            The intrinsic rewards.
-        """
-        # compute the weighting coefficient of timestep t
-        beta_t = self._beta * np.power(1.0 - self._kappa, step)
-        num_steps = samples["obs"].size()[0]
-        num_envs = samples["obs"].size()[1]
-        # obs_tensor = samples["obs"].to(self._device)
-
-        intrinsic_rewards = torch.zeros(size=(num_steps, num_envs)).to(self._device)
-
-        with torch.no_grad():
-            for i in range(num_envs):
-                src_feats = self.rnd(obs_tensor[:, i])
-                dist = torch.linalg.vector_norm(src_feats.unsqueeze(1) - src_feats, ord=2, dim=2)
-                if self.average_entropy:
-                    for sub_k in range(self.k):
-                        intrinsic_rewards[:, i] += torch.log(torch.kthvalue(dist, sub_k + 1, dim=1).values + 1.0)
-                    intrinsic_rewards[:, i] /= self.k
-                else:
-                    intrinsic_rewards[:, i] = torch.log(torch.kthvalue(dist, self.k + 1, dim=1).values + 1.0)
-
-        return intrinsic_rewards * beta_t
-
     def update_rnd(self, obs, step):
         metrics = dict()
 
@@ -123,11 +88,20 @@ class RE3Agent(DDPGAgent):
         return metrics
 
     def compute_intr_reward(self, obs, step):
-        prediction_error = self.rnd(obs)
-        _, intr_reward_var = self.intrinsic_reward_rms(prediction_error)
-        reward = self.rnd_scale * prediction_error / (
-            torch.sqrt(intr_reward_var) + 1e-8)
-        return reward
+        # beta_t = self.beta * np.power(1.0 - self.kappa, step)
+        beta_t = 1.0
+        intrinsic_rewards = torch.zeros(size=(obs.shape[0],))
+        features = self.rnd(obs)
+        dist = torch.cdist(features, features, p=2)
+        if self.average_entropy:
+            for sub_k in range(self.k):
+                intrinsic_rewards += torch.log(torch.kthvalue(dist, sub_k + 1, dim=1).values + 1.0)
+            intrinsic_rewards /= self.k
+        else:
+            intrinsic_rewards = torch.log(torch.kthvalue(dist, self.k + 1, dim=1).values + 1.0)
+
+        reward =  intrinsic_rewards * beta_t
+        return reward.unsqueeze(1)
 
     def update(self, replay_iter, step):
         metrics = dict()
@@ -141,8 +115,8 @@ class RE3Agent(DDPGAgent):
 
         # update RND first
         if self.reward_free:
-            # note: one difference is that the RND module is updated off policy
-            metrics.update(self.update_rnd(obs, step))
+            # re3 doesnt update the encoder
+            # metrics.update(self.update_rnd(obs, step))
 
             with torch.no_grad():
                 intr_reward = self.compute_intr_reward(obs, step)
