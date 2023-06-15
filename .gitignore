@@ -33,3 +33,10 @@ rnd_walker_pixel_buffer5/buffer
 rnd_quad_pixel_buffer6/buffer
 icm_walker_pixel_buffer5/buffer
 icm_quad_pixel_buffer6/buffer
+re3_walker_states_buffer5/buffer
+re3_walker_states_buffer4/buffer
+re3_walker_pixels_buffer5/buffer
+re3_walker_pixels_buffer4/buffer
+re3_quad_states_buffer6/buffer
+re3_quad_states_buffer5/buffer
+re3_quad_pixels_buffer6/buffer
