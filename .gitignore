@@ -40,3 +40,5 @@ re3_walker_pixels_buffer4/buffer
 re3_quad_states_buffer6/buffer
 re3_quad_states_buffer5/buffer
 re3_quad_pixels_buffer6/buffer
+models/states/walker/re3
+re3_quad_pixels_buffer5/buffer
