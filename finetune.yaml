@@ -41,7 +41,7 @@ group_name: ddpg_rebuffered_quad_run
 double_buffer: false
 freeze_encoder: false
 load_only_encoder: true
-#buffer_dir: "" 
+buffer_dir: "" 
 # buffer_dir: /code/url_benchmark/exp_local/2022.08.11/test_double_buffer/
 # buffer_dir: /code/url_benchmark/exp_local/2022.09.29/quad_run_buffer/
 # buffer_dir: /code/url_benchmark/exp_local/2022.09.29/quad_jump_buffer/
@@ -54,7 +54,7 @@ load_only_encoder: true
 #buffer_dir: "/code/url_benchmark/icm_quad_pixel_buffer"
 #buffer_dir: "/code/url_benchmark/icm_quad_pixel_buffer"
 #buffer_dir: "/code/url_benchmark/icm_walker_pixel_buffer"
-buffer_dir: "/code/url_benchmark/rnd_walker_pixel_buffer2"
+# buffer_dir: "/code/url_benchmark/rnd_walker_pixel_buffer2"
 #buffer_dir: "/code/url_benchmark/rnd_quad_pixel_buffer"
 batch_sched: normal
 save_buffer: true
