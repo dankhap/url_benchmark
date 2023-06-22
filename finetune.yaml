@@ -40,7 +40,7 @@ group_name: ddpg_rebuffered_quad_run
 # buffer_dir: /code/url_benchmark/exp_local/2022.08.11/135826_icm/
 double_buffer: false
 freeze_encoder: false
-load_only_encoder: true
+load_only_encoder: false
 buffer_dir: "" 
 # buffer_dir: /code/url_benchmark/exp_local/2022.08.11/test_double_buffer/
 # buffer_dir: /code/url_benchmark/exp_local/2022.09.29/quad_run_buffer/
