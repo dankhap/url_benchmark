@@ -24,6 +24,14 @@ class RE3(nn.Module):
                  clip_val=5.):
         super().__init__()
 
+        self.clip_val = clip_val
+        self.aug = aug
+
+        if obs_type == "pixels":
+            self.normalize_obs = nn.BatchNorm2d(obs_shape[0], affine=False)
+        else:
+            self.normalize_obs = nn.BatchNorm1d(obs_shape[0], affine=False)
+
         self.rnd_enc = nn.Sequential(encoder, nn.Linear(obs_dim, rnd_rep_dim), nn.LayerNorm(rnd_rep_dim))
 
         for param in self.rnd_enc.parameters():
@@ -36,6 +44,9 @@ class RE3(nn.Module):
 
 
     def forward(self, obs):
+        obs = self.aug(obs)
+        obs = self.normalize_obs(obs)
+        obs = torch.clamp(obs, -self.clip_val, self.clip_val)
         features = self.rnd_enc(obs)
         return features
 
