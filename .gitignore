@@ -46,3 +46,7 @@ re3_walker_pixels_buffer16/buffer
 re3_walker_pixels_buffer20/buffer
 re3_walker_states_buffer16/buffer
 re3_walker_states_buffer20/buffer
+icm_walker_pixels_buffer16/buffer
+icm_walker_pixels_buffer20/buffer
+rnd_walker_pixels_buffer16/buffer
+rnd_walker_pixels_buffer20/buffer
