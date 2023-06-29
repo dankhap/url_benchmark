@@ -56,3 +56,9 @@ re3_quad_states_buffer16/buffer
 re3_quad_states_buffer26/buffer
 re3_walker_pixels_buffer26/buffer
 re3_walker_states_buffer26/buffer
+icm_quad_pixels_buffer16/buffer
+icm_quad_pixels_buffer26/buffer
+icm_walker_pixels_buffer26/buffer
+rnd_quad_pixels_buffer16/buffer
+rnd_quad_pixels_buffer26/buffer
+rnd_walker_pixels_buffer26/buffer
