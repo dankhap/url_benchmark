@@ -1,4 +1,5 @@
 import datetime
+import sys
 import io
 import random
 import traceback
@@ -212,9 +213,10 @@ class BufferedReplayBuffer(IterableDataset):
                 yield self.exploration_buffer._sample()
 
 def _worker_init_fn(worker_id):
-    seed = np.random.get_state()[1][0] + worker_id
+    seed = np.random.get_state(legacy=True)[1][0] + worker_id
     print(f"Worker {worker_id} seed: {seed}, type: {type(seed)}")
-    np.random.seed(seed)
+    print(f"Worker {worker_id} seed: {seed}, type: {type(seed)}", file=sys.stderr)
+    np.random.seed(int(seed))
     random.seed(seed)
 
 
