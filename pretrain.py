@@ -5,7 +5,8 @@ warnings.filterwarnings('ignore', category=DeprecationWarning)
 import os
 
 os.environ['MKL_SERVICE_FORCE_INTEL'] = '1'
-os.environ['MUJOCO_GL'] = 'osmesa'
+# os.environ['MUJOCO_GL'] = 'osmesa'
+os.environ['MUJOCO_GL'] = 'egl'
 
 os.environ['MESA_GL_VERSION_OVERRIDE'] = '3.3'
 os.environ['MESA_GLSL_VERSION_OVERRIDE'] = '330'
