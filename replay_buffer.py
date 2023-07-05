@@ -213,6 +213,7 @@ class BufferedReplayBuffer(IterableDataset):
 
 def _worker_init_fn(worker_id):
     seed = np.random.get_state()[1][0] + worker_id
+    print(f"Worker {worker_id} seed: {seed}, type: {type(seed)}")
     np.random.seed(seed)
     random.seed(seed)
 
