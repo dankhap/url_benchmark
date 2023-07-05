@@ -99,7 +99,8 @@ class Workspace:
                                                 cfg.replay_buffer_num_workers,
                                                 cfg.save_buffer,
                                                 cfg.nstep,
-                                                cfg.discount)
+                                                cfg.discount,
+                                                cfg.seed)
         self._replay_iter = None
 
         # create video recorders

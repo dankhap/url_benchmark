@@ -212,17 +212,20 @@ class BufferedReplayBuffer(IterableDataset):
                 self.replay_buffer._samples_since_last_fetch += 1
                 yield self.exploration_buffer._sample()
 
-def _worker_init_fn(worker_id):
-    seed = np.random.get_state(legacy=True)[1][0] + worker_id
-    print(f"Worker {worker_id} seed: {seed}, type: {type(seed)}")
-    print(f"Worker {worker_id} seed: {seed}, type: {type(seed)}", file=sys.stderr)
-    np.random.seed(int(seed))
-    random.seed(seed)
+def get_worker_init_fn(oseed):
+    def _worker_init_fn(worker_id):
+        seed = oseed + worker_id
+        print(f"Worker {worker_id} seed: {seed}, type: {type(seed)}")
+        print(f"Worker {worker_id} seed: {seed}, type: {type(seed)}", file=sys.stderr)
+        np.random.seed(seed)
+        random.seed(seed)
+
+    return _worker_init_fn
 
 
 
 def make_orig_replay_loader(storage, max_size, batch_size, num_workers,
-                       save_snapshot, nstep, discount):
+                       save_snapshot, nstep, discount, seed=0):
     max_size_per_worker = max_size // max(1, num_workers)
 
     iterable = ReplayBuffer(storage,
@@ -237,7 +240,7 @@ def make_orig_replay_loader(storage, max_size, batch_size, num_workers,
                                          batch_size=batch_size,
                                          num_workers=num_workers,
                                          pin_memory=True,
-                                         worker_init_fn=_worker_init_fn)
+                                         worker_init_fn=get_worker_init_fn(seed))
     return loader
 
 def make_replay_loader(storage, exploration_buffer, max_size, batch_size, num_workers,
