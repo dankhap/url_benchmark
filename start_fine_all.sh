@@ -1,21 +1,16 @@
 #!/bin/bash
 
-# bash ./start_fine.sh re3 states walker run 16
-# bash ./start_fine.sh re3 states walker run 20
-# bash ./start_fine.sh re3 states walker flip 16
-# bash ./start_fine.sh re3 states walker flip 20
+obs=${1}
 
-# bash ./start_fine.sh re3 states quadruped run 16
-# bash ./start_fine.sh re3 states quadruped run 20
-# bash ./start_fine.sh re3 states quadruped jump 16
-# bash ./start_fine.sh re3 states quadruped jump 20
+for algo in "${@:2}"; do
+	bash ./start_fine.sh ${algo} ${obs} walker_run 16 "*"
+	bash ./start_fine.sh ${algo} ${obs} walker_run 26 "*"
+	bash ./start_fine.sh ${algo} ${obs} walker_flip 16 "*"
+	bash ./start_fine.sh ${algo} ${obs} walker_flip 26 "*"
 
-bash ./start_fine.sh icm pixels walker run 16
-bash ./start_fine.sh icm pixels walker run 20
-bash ./start_fine.sh icm pixels walker flip 16
-bash ./start_fine.sh icm pixels walker flip 20
+	bash ./start_fine.sh ${algo} ${obs} quadruped_run 16 "*"
+	bash ./start_fine.sh ${algo} ${obs} quadruped_run 26 "*"
+	bash ./start_fine.sh ${algo} ${obs} quadruped_jump 16 "*"
+	bash ./start_fine.sh ${algo} ${obs} quadruped_jump 26 "*"
+done
 
-bash ./start_fine.sh icm pixels quadruped run 16
-bash ./start_fine.sh icm pixels quadruped run 20
-bash ./start_fine.sh icm pixels quadruped jump 16
-bash ./start_fine.sh icm pixels quadruped jump 20

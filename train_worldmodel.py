@@ -1,7 +1,7 @@
+
 import os
 import enum
 from distutils.dir_util import copy_tree
-from dreamer.dreamer import Dreamer
 
 
 import warnings
@@ -124,14 +124,6 @@ class Workspace:
         self.timer = utils.Timer()
         self._global_step = 0
         self._global_episode = 0
-
-        self.agent = Dreamer(
-            self.train_env.observation_spec(),
-            self.train_env.action_spec(),
-            cfg,
-            self.logger,
-            self.replay_loader,
-        ).to(self.device)
 
     @property
     def global_step(self):
@@ -310,7 +302,7 @@ class Workspace:
         return None
 
 
-@hydra.main(config_path='/code/url_benchmark/', config_name='finetune')
+@hydra.main(config_path='/code/url_benchmark/', config_name='train_wm')
 def main(cfg):
     from finetune import Workspace as W
     root_dir = Path.cwd()

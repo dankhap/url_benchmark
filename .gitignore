@@ -77,3 +77,8 @@ rnd_quadruped_pixel_buffer5/buffer
 rnd_quadruped_pixel_buffer6/buffer
 rnd_quadruped_pixels_buffer16/buffer
 rnd_quadruped_pixels_buffer26/buffer
+rnd_walker_states_buffer26/buffer
+test/buffer
+icm_walker_states_buffer16
+rnd_quadruped_states_buffer16
+rnd_walker_states_buffer16
