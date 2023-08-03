@@ -1,9 +1,11 @@
 import argparse
+from collections import OrderedDict
 import collections
 import functools
 import os
 import pathlib
 import sys
+import traceback
 import warnings
 
 os.environ["MUJOCO_GL"] = "egl"
@@ -26,9 +28,28 @@ from torch import distributions as torchd
 to_np = lambda x: x.detach().cpu().numpy()
 
 
+
+def _iterate_episodes(dataset):
+    try:
+        dataset._try_fetch()
+    except:
+        traceback.print_exc()
+    for _, episode in dataset._episodes.items():
+        episode['image'] = episode['observation']
+        yield episode
+
 class Dreamer(nn.Module):
-    def __init__(self, obs_space, act_space, config, logger, dataset):
+    def __init__(self, obs_space, act_space, config, buffer_loader,  logger):
         super(Dreamer, self).__init__()
+
+        # reset config
+        config.steps //= config.action_repeat
+        config.eval_every //= config.action_repeat
+        config.log_every //= config.action_repeat
+        config.time_limit //= config.action_repeat
+        acts = act_space
+        config.num_actions = acts.n if hasattr(acts, "n") else acts.shape[0]
+
         self._config = config
         self._logger = logger
         self._should_log = tools.Every(config.log_every)
@@ -38,9 +59,12 @@ class Dreamer(nn.Module):
         self._should_reset = tools.Every(config.reset_every)
         self._should_expl = tools.Until(int(config.expl_until / config.action_repeat))
         self._metrics = {}
-        self._step = count_steps(config.traindir)
+        self._buffer_loader = buffer_loader
+        self._step = buffer_loader.dataset._storage._num_transitions
+        # self._step = count_steps(config.traindir)
         self._update_count = 0
         # Schedules.
+        config._set_flag("allow_objects", True)
         config.actor_entropy = lambda x=config.actor_entropy: tools.schedule(
             x, self._step
         )
@@ -50,7 +74,10 @@ class Dreamer(nn.Module):
         config.imag_gradient_mix = lambda x=config.imag_gradient_mix: tools.schedule(
             x, self._step
         )
-        self._dataset = dataset
+        self._dataset = _iterate_episodes(buffer_loader.dataset)
+        if type(obs_space) is not dict:
+            # obs_space = {obs_space.name: obs_space}
+            obs_space = {'image': obs_space}
         self._wm = models.WorldModel(obs_space, act_space, self._step, config)
         self._task_behavior = models.ImagBehavior(
             config, self._wm, config.behavior_stop_grad
@@ -67,7 +94,37 @@ class Dreamer(nn.Module):
             plan2explore=lambda: expl.Plan2Explore(config, self._wm, reward),
         )[config.expl_behavior]().to(self._config.device)
 
+    def act(self, obs, reset, state=None, reward=None, training=True):
+        return self._policy(obs, state, training)
+
+    def init_meta(self):
+        return OrderedDict()
+
+    def update_meta(self, obs, reset, state=None, reward=None, training=True):
+        step = self._step
+        if training:
+            steps = (
+                self._config.pretrain
+                if self._should_pretrain()
+                else self._should_train(step)
+            )
+            for _ in range(steps):
+                self._train(next(iter(self._dataset)))
+                self._update_count += 1
+                self._metrics["update_count"] = self._update_count
+            if self._should_log(step):
+                for name, values in self._metrics.items():
+                    self._logger.scalar(name, float(np.mean(values)))
+                    self._metrics[name] = []
+                if self._config.video_pred_log:
+                    openl = self._wm.video_pred(next(self._dataset))
+                    self._logger.video("train_openl", to_np(openl))
+                self._logger.write(fps=True)
+
     def __call__(self, obs, reset, state=None, reward=None, training=True):
+        return self.forward(obs, reset, state, reward, training)    
+
+    def forward(self, obs, reset, state=None, reward=None, training=True):
         step = self._step
         if self._should_reset(step):
             state = None
@@ -85,7 +142,7 @@ class Dreamer(nn.Module):
                 else self._should_train(step)
             )
             for _ in range(steps):
-                self._train(next(self._dataset))
+                self._train(next(iter(self._dataset)))
                 self._update_count += 1
                 self._metrics["update_count"] = self._update_count
             if self._should_log(step):
@@ -391,28 +448,28 @@ def main(config):
         except Exception:
             pass
 
+def mainmain():
+    if __name__ == "__main__":
+        parser = argparse.ArgumentParser()
+        parser.add_argument("--configs", nargs="+")
+        args, remaining = parser.parse_known_args()
+        configs = yaml.safe_load(
+            (pathlib.Path(sys.argv[0]).parent / "configs.yaml").read_text()
+        )
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--configs", nargs="+")
-    args, remaining = parser.parse_known_args()
-    configs = yaml.safe_load(
-        (pathlib.Path(sys.argv[0]).parent / "configs.yaml").read_text()
-    )
+        def recursive_update(base, update):
+            for key, value in update.items():
+                if isinstance(value, dict) and key in base:
+                    recursive_update(base[key], value)
+                else:
+                    base[key] = value
 
-    def recursive_update(base, update):
-        for key, value in update.items():
-            if isinstance(value, dict) and key in base:
-                recursive_update(base[key], value)
-            else:
-                base[key] = value
-
-    name_list = ["defaults", *args.configs] if args.configs else ["defaults"]
-    defaults = {}
-    for name in name_list:
-        recursive_update(defaults, configs[name])
-    parser = argparse.ArgumentParser()
-    for key, value in sorted(defaults.items(), key=lambda x: x[0]):
-        arg_type = tools.args_type(value)
-        parser.add_argument(f"--{key}", type=arg_type, default=arg_type(value))
-    main(parser.parse_args(remaining))
+        name_list = ["defaults", *args.configs] if args.configs else ["defaults"]
+        defaults = {}
+        for name in name_list:
+            recursive_update(defaults, configs[name])
+        parser = argparse.ArgumentParser()
+        for key, value in sorted(defaults.items(), key=lambda x: x[0]):
+            arg_type = tools.args_type(value)
+            parser.add_argument(f"--{key}", type=arg_type, default=arg_type(value))
+        main(parser.parse_args(remaining))

@@ -365,8 +365,9 @@ class MultiEncoder(nn.Module):
 
         self.outdim = 0
         if self.cnn_shapes:
-            input_ch = sum([v[-1] for v in self.cnn_shapes.values()])
-            input_shape = tuple(self.cnn_shapes.values())[0][:2] + (input_ch,)
+            # adapt from support of h, w, c to c, h, w
+            input_ch = sum([v[0] for v in self.cnn_shapes.values()])
+            input_shape = tuple(self.cnn_shapes.values())[0][-2:] + (input_ch,)
             self._cnn = ConvEncoder(
                 input_shape, cnn_depth, act, norm, kernel_size, minres
             )
@@ -522,7 +523,8 @@ class ConvEncoder(nn.Module):
         # (batch, time, h, w, ch) -> (batch * time, h, w, ch)
         x = obs.reshape((-1,) + tuple(obs.shape[-3:]))
         # (batch * time, h, w, ch) -> (batch * time, ch, h, w)
-        x = x.permute(0, 3, 1, 2)
+        # but using urlb buffer, we already have (batch * time, ch, h, w)
+        # x = x.permute(0, 3, 1, 2)
         x = self.layers(x)
         # (batch * time, ...) -> (batch * time, -1)
         x = x.reshape([x.shape[0], np.prod(x.shape[1:])])

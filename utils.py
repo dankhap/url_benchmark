@@ -98,7 +98,7 @@ class Until:
 
 class Every:
     def __init__(self, every, action_repeat=1):
-        self._every = every
+        self._every = None if every == '' else every
         self._action_repeat = action_repeat
 
     def __call__(self, step):

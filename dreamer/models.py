@@ -34,7 +34,8 @@ class WorldModel(nn.Module):
         self._step = step
         self._use_amp = True if config.precision == 16 else False
         self._config = config
-        shapes = {k: tuple(v.shape) for k, v in obs_space.spaces.items()}
+        # shapes = {k: tuple(v.shape) for k, v in obs_space.spaces.items()}
+        shapes = {k: tuple(v.shape) for k, v in obs_space.items()}
         self.encoder = networks.MultiEncoder(shapes, **config.encoder)
         self.embed_size = self.encoder.outdim
         self.dynamics = networks.RSSM(
@@ -185,9 +186,11 @@ class WorldModel(nn.Module):
             obs["discount"] = torch.Tensor(obs["discount"]).unsqueeze(-1)
         if "is_terminal" in obs:
             # this label is necessary to train cont_head
+            # in urlb problems, condition for terminal state is given only by number of steps, no need to train cont_head
             obs["cont"] = torch.Tensor(1.0 - obs["is_terminal"]).unsqueeze(-1)
         else:
-            raise ValueError('"is_terminal" was not found in observation.')
+            obs["cont"] = torch.ones_like(obs["reward"])
+            # raise ValueError('"is_terminal" was not found in observation.')
         obs = {k: torch.Tensor(v).to(self._config.device) for k, v in obs.items()}
         return obs
 
