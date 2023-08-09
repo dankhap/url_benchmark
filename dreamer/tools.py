@@ -188,7 +188,7 @@ def save_episodes(directory, episodes):
 def from_generator(generator, batch_size):
     while True:
         batch = []
-        for _ in range(batch_size):
+        for _ in range(batch_size):  # TODO: sample until have only batch_length of episodes
             batch.append(next(generator))
         data = {}
         for key in batch[0].keys():
@@ -199,26 +199,37 @@ def from_generator(generator, batch_size):
         yield data
 
 
-def sample_episodes(episodes, length, seed=0):
+def sample_episodes(loader, length, seed=0, reload_freq=10):
     random = np.random.RandomState(seed)
+    samples_count = 0
+    episodes = {}
     while True:
+        if samples_count % reload_freq == 0:
+            loader.dataset._try_fetch()
+            episodes = loader.dataset._episodes
         size = 0
-        ret = None
+        first_chunk = True
         p = np.array(
             [len(next(iter(episode.values()))) for episode in episodes.values()]
         )
         p = p / np.sum(p)
+        ret = {}
+        ret["is_first"] = np.zeros(length, dtype=bool)
+        ret["is_last"] = np.zeros(length, dtype=bool)
         while size < length:
             episode = random.choice(list(episodes.values()), p=p)
             total = len(next(iter(episode.values())))
             # make sure at least one transition included
             if total < 2:
                 continue
-            if not ret:
+            if first_chunk :
                 index = int(random.randint(0, total - 1))
-                ret = {
+                ret.update({
                     k: v[index : min(index + length, total)] for k, v in episode.items()
-                }
+                })
+                if index == 0:
+                    ret["is_first"][0] = True
+                first_chunk = False
             else:
                 # 'is_first' comes after 'is_last'
                 index = 0
@@ -229,7 +240,17 @@ def sample_episodes(episodes, length, seed=0):
                     )
                     for k, v in episode.items()
                 }
+                ret["is_first"][size] = True
+                ret["is_last"][size-1] = True
             size = len(next(iter(ret.values())))
+         
+        # preprocess, change observation to image and add is_first and is_last
+        if type(ret) == dict and "observation" in ret:
+            ret["image"] = ret["observation"].transpose(0, 3, 1 ,2)
+            ret["is_first"] = ret["is_first"][:size]
+            ret["is_last"] = ret["is_last"][:size]
+
+        samples_count += 1
         yield ret
 
 

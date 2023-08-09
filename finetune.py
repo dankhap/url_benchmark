@@ -1,7 +1,9 @@
 import os
 import enum
-from distutils.dir_util import copy_tree
+import shutil
+import traceback
 from dreamer.dreamer import Dreamer
+from dreamer.dreamer import make_dataset_urlb
 
 
 import warnings
@@ -36,6 +38,14 @@ warnings.filterwarnings('ignore', category=DeprecationWarning)
 
 torch.backends.cudnn.benchmark = True
 
+def _iterate_episodes(dataset):
+    try:
+        dataset._try_fetch()
+    except:
+        traceback.print_exc()
+    for _, episode in dataset._episodes.items():
+        episode['image'] = episode['observation']
+        yield episode
 
 def make_agent(obs_type, obs_spec, action_spec, num_expl_steps, load_only_encoder, cfg):
     cfg.obs_type = obs_type
@@ -52,9 +62,9 @@ class Workspace:
         self.buffer_dir = self.work_dir
         if cfg.buffer_dir != "":
             print(f'buffer_dir: {cfg.buffer_dir}')
-            copy_tree(cfg.buffer_dir, str(self.work_dir))
-            print("finished copying buffer")
-            # self.buffer_dir = Path(cfg.buffer_dir)
+            # shutil.copytree(cfg.buffer_dir, str(self.work_dir))
+            # print("finished copying buffer")
+            self.buffer_dir = Path(cfg.buffer_dir)
 
         print(f'workspace: {self.work_dir}')
         print(f'slurm job id: {os.environ["SLURM_JOB_ID"]}')
@@ -113,6 +123,7 @@ class Workspace:
                                                 cfg.batch_size,
                                                 cfg.replay_buffer_num_workers,
                                                 cfg.save_buffer, cfg.nstep, cfg.discount)
+        dataset = make_dataset_urlb(self.replay_loader, cfg.dreamer_conf.dreamer)
         self._replay_iter = None
 
         # create video recorders
@@ -125,12 +136,14 @@ class Workspace:
         self._global_step = 0
         self._global_episode = 0
 
+        assert cfg.device == cfg.dreamer_conf.dreamer.device
         self.agent = Dreamer(
             self.train_env.observation_spec(),
             self.train_env.action_spec(),
-            cfg,
-            self.logger,
+            cfg.dreamer_conf.dreamer,
             self.replay_loader,
+            self.logger,
+            dataset
         ).to(self.device)
 
     @property

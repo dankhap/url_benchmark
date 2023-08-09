@@ -17,7 +17,7 @@ sys.path.append(str(pathlib.Path(__file__).parent))
 
 import exploration as expl
 import models
-import tools
+import tools 
 # import envs.wrappers as wrappers
 
 import torch
@@ -29,17 +29,9 @@ to_np = lambda x: x.detach().cpu().numpy()
 
 
 
-def _iterate_episodes(dataset):
-    try:
-        dataset._try_fetch()
-    except:
-        traceback.print_exc()
-    for _, episode in dataset._episodes.items():
-        episode['image'] = episode['observation']
-        yield episode
 
 class Dreamer(nn.Module):
-    def __init__(self, obs_space, act_space, config, buffer_loader,  logger):
+    def __init__(self, obs_space, act_space, config, buffer_loader,  logger, dataset):
         super(Dreamer, self).__init__()
 
         # reset config
@@ -74,7 +66,8 @@ class Dreamer(nn.Module):
         config.imag_gradient_mix = lambda x=config.imag_gradient_mix: tools.schedule(
             x, self._step
         )
-        self._dataset = _iterate_episodes(buffer_loader.dataset)
+        # self._dataset = _iterate_episodes(buffer_loader.dataset)
+        self._dataset = dataset
         if type(obs_space) is not dict:
             # obs_space = {obs_space.name: obs_space}
             obs_space = {'image': obs_space}
@@ -232,6 +225,11 @@ class Dreamer(nn.Module):
 def count_steps(folder):
     return sum(int(str(n).split("-")[-1][:-4]) - 1 for n in folder.glob("*.npz"))
 
+
+def make_dataset_urlb(episodes, config):
+    generator = tools.sample_episodes(episodes, config.batch_length)
+    dataset = tools.from_generator(generator, config.batch_size)
+    return dataset
 
 def make_dataset(episodes, config):
     generator = tools.sample_episodes(episodes, config.batch_length)
