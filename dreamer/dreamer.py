@@ -228,7 +228,7 @@ def count_steps(folder):
 
 def make_dataset_urlb(episodes, config):
     generator = tools.sample_episodes(episodes, config.batch_length)
-    dataset = tools.from_generator(generator, config.batch_size)
+    dataset = tools.from_generator(generator, config.batch_size, config.batch_length)
     return dataset
 
 def make_dataset(episodes, config):

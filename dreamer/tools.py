@@ -185,11 +185,14 @@ def save_episodes(directory, episodes):
     return filenames
 
 
-def from_generator(generator, batch_size):
+def from_generator(generator, batch_size, length):
     while True:
         batch = []
         for _ in range(batch_size):  # TODO: sample until have only batch_length of episodes
-            batch.append(next(generator))
+            elem = next(generator) 
+            while elem["observation"].shape[0] < length:
+                elem = next(generator)
+            batch.append(elem)
         data = {}
         for key in batch[0].keys():
             data[key] = []
@@ -246,7 +249,7 @@ def sample_episodes(loader, length, seed=0, reload_freq=10):
          
         # preprocess, change observation to image and add is_first and is_last
         if type(ret) == dict and "observation" in ret:
-            ret["image"] = ret["observation"].transpose(0, 3, 1 ,2)
+            ret["image"] = ret["observation"].transpose(0, 2, 3, 1)
             ret["is_first"] = ret["is_first"][:size]
             ret["is_last"] = ret["is_last"][:size]
 
