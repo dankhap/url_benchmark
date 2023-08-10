@@ -64,10 +64,11 @@ class Workspace:
             print(f'buffer_dir: {cfg.buffer_dir}')
             # shutil.copytree(cfg.buffer_dir, str(self.work_dir))
             # print("finished copying buffer")
+            print("WARRNING: using buffer dir as work dir, data can get changed")
             self.buffer_dir = Path(cfg.buffer_dir)
 
         print(f'workspace: {self.work_dir}')
-        print(f'slurm job id: {os.environ["SLURM_JOB_ID"]}')
+        print(f'slurm job id: {os.environ.get("SLURM_JOB_ID", "none")}')
 
         self.cfg = cfg
         utils.set_seed_everywhere(cfg.seed)
@@ -123,7 +124,7 @@ class Workspace:
                                                 cfg.batch_size,
                                                 cfg.replay_buffer_num_workers,
                                                 cfg.save_buffer, cfg.nstep, cfg.discount)
-        dataset = make_dataset_urlb(self.replay_loader, cfg.dreamer_conf.dreamer)
+        self.dream_dataset = make_dataset_urlb(self.replay_loader, cfg.dreamer_conf.dreamer)
         self._replay_iter = None
 
         # create video recorders
@@ -136,15 +137,17 @@ class Workspace:
         self._global_step = 0
         self._global_episode = 0
 
-        assert cfg.device == cfg.dreamer_conf.dreamer.device
-        self.agent = Dreamer(
-            self.train_env.observation_spec(),
-            self.train_env.action_spec(),
-            cfg.dreamer_conf.dreamer,
-            self.replay_loader,
-            self.logger,
-            dataset
-        ).to(self.device)
+        if "dreamer_conf" in cfg:
+            assert cfg.device == cfg.dreamer_conf.dreamer.device
+            obs_spec = self.train_env.observation_spec()
+            self.agent = Dreamer(
+                obs_spec,
+                self.train_env.action_spec(),
+                cfg.dreamer_conf.dreamer,
+                self.replay_loader,
+                self.logger,
+                self.dream_dataset
+            ).to(self.device)
 
     @property
     def global_step(self):
@@ -240,7 +243,7 @@ class Workspace:
                                 self.global_frame)
                 self.eval()
 
-            meta = self.agent.update_meta(meta, self.global_step, time_step)
+            meta = self.agent.update_meta(meta, self.global_step, time_step, self.dream_dataset)
 
             if hasattr(self.agent, "regress_meta"):
                 repeat = self.cfg.action_repeat
@@ -323,7 +326,7 @@ class Workspace:
         return None
 
 
-@hydra.main(config_path='/code/url_benchmark/', config_name='finetune')
+@hydra.main(config_path='.', config_name='finetune')
 def main(cfg):
     from finetune import Workspace as W
     root_dir = Path.cwd()

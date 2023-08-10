@@ -55,6 +55,8 @@ class Dreamer(nn.Module):
         self._step = buffer_loader.dataset._storage._num_transitions
         # self._step = count_steps(config.traindir)
         self._update_count = 0
+        self._dataset = dataset
+
         # Schedules.
         config._set_flag("allow_objects", True)
         config.actor_entropy = lambda x=config.actor_entropy: tools.schedule(
@@ -67,7 +69,6 @@ class Dreamer(nn.Module):
             x, self._step
         )
         # self._dataset = _iterate_episodes(buffer_loader.dataset)
-        self._dataset = dataset
         if type(obs_space) is not dict:
             # obs_space = {obs_space.name: obs_space}
             obs_space = {'image': obs_space}
