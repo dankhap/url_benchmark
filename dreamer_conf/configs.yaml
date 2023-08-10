@@ -11,7 +11,7 @@ dreamer:
   log_every: 1e4
   reset_every: 0
   # device: 'cuda:0'
-  device: 'cuda'
+  device: 'cpu'
   compile: False
   precision: 32
   debug: False

@@ -367,7 +367,7 @@ class MultiEncoder(nn.Module):
         if self.cnn_shapes:
             # adapt from support of h, w, c to c, h, w
             input_ch = sum([v[0] for v in self.cnn_shapes.values()])
-            input_shape = tuple(self.cnn_shapes.values())[0][-2:] + (input_ch,)
+            input_shape = (input_ch,) + tuple(self.cnn_shapes.values())[0][-2:] 
             self._cnn = ConvEncoder(
                 input_shape, cnn_depth, act, norm, kernel_size, minres
             )
@@ -431,7 +431,7 @@ class MultiDecoder(nn.Module):
 
         if self.cnn_shapes:
             some_shape = list(self.cnn_shapes.values())[0]
-            shape = (sum(x[-1] for x in self.cnn_shapes.values()),) + some_shape[:-1]
+            shape = (sum(x[0] for x in self.cnn_shapes.values()),) + some_shape[1:]
             self._cnn = ConvDecoder(
                 feat_size,
                 shape,
