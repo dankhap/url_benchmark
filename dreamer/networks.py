@@ -459,8 +459,10 @@ class MultiDecoder(nn.Module):
         if self.cnn_shapes:
             feat = features
             outputs = self._cnn(feat)
-            split_sizes = [v[-1] for v in self.cnn_shapes.values()]
-            outputs = torch.split(outputs, split_sizes, -1)
+            # split_sizes = [v[-1] for v in self.cnn_shapes.values()]
+            split_sizes = [v[0] for v in self.cnn_shapes.values()]
+            # outputs = torch.split(outputs, split_sizes, -1)   # original implementation
+            outputs = torch.split(outputs, split_sizes, -3)
             dists.update(
                 {
                     key: self._make_image_dist(output)
@@ -494,7 +496,7 @@ class ConvEncoder(nn.Module):
         super(ConvEncoder, self).__init__()
         act = getattr(torch.nn, act)
         norm = getattr(torch.nn, norm)
-        h, w, input_ch = input_shape
+        input_ch, h, w= input_shape
         layers = []
         for i in range(int(np.log2(h) - np.log2(minres))):
             if i == 0:
@@ -613,7 +615,9 @@ class ConvDecoder(nn.Module):
         # (batch, time, -1) -> (batch * time, ch, h, w) necessary???
         mean = x.reshape(features.shape[:-1] + self._shape)
         # (batch * time, ch, h, w) -> (batch * time, h, w, ch)
-        mean = mean.permute(0, 1, 3, 4, 2)
+        # but using urlb buffer, we already have (batch * time, h, w, ch)
+        # TODO: decide if this is necessary
+        #mean = mean.permute(0, 1, 3, 4, 2)
         if self._cnn_sigmoid:
             mean = F.sigmoid(mean) - 0.5
         return mean

@@ -108,12 +108,13 @@ class Dreamer(nn.Module):
                 self._metrics["update_count"] = self._update_count
             if self._should_log(step):
                 for name, values in self._metrics.items():
-                    self._logger.scalar(name, float(np.mean(values)))
+                    # self._logger.scalar(name, float(np.mean(values)))
+                    self._logger.log("train_" + name, float(np.mean(values)), step)
                     self._metrics[name] = []
                 if self._config.video_pred_log:
                     openl = self._wm.video_pred(next(self._dataset))
                     self._logger.video("train_openl", to_np(openl))
-                self._logger.write(fps=True)
+                # self._logger.write(fps=True)
 
     def __call__(self, obs, reset, state=None, reward=None, training=True):
         return self.forward(obs, reset, state, reward, training)    

@@ -11,7 +11,7 @@ dreamer:
   log_every: 1e4
   reset_every: 0
   # device: 'cuda:0'
-  device: 'cpu'
+  device: 'cuda'
   compile: False
   precision: 32
   debug: False
@@ -23,7 +23,7 @@ dreamer:
   size: [64, 64]
   envs: 1
   action_repeat: 2
-  num_actions: 2
+  num_actions: 6
   time_limit: 1000
   grayscale: False
   prefill: 2500

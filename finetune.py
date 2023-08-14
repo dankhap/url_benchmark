@@ -90,9 +90,9 @@ class Workspace:
         # create envs
 
         self.train_env = dmc.make(cfg.task, cfg.obs_type, cfg.frame_stack,
-                                  cfg.action_repeat, cfg.seed)
+                                  cfg.action_repeat, cfg.seed, resize=(64, 64))
         self.eval_env = dmc.make(cfg.task, cfg.obs_type, cfg.frame_stack,
-                                 cfg.action_repeat, cfg.seed)
+                                 cfg.action_repeat, cfg.seed, resize=(64, 64))
 
         # create agent
         self.agent = make_agent(cfg.obs_type,

@@ -1,9 +1,10 @@
 import datetime
+import scipy.ndimage as ndi
+import cv2
 import collections
 import io
 import json
 import pathlib
-import pickle
 import re
 import time
 import uuid
@@ -14,7 +15,6 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 from torch import distributions as torchd
-from torch.utils.data import Dataset
 from torch.utils.tensorboard import SummaryWriter
 
 
@@ -249,7 +249,11 @@ def sample_episodes(loader, length, seed=0, reload_freq=10):
          
         # preprocess, change observation to image and add is_first and is_last
         if type(ret) == dict and "observation" in ret:
-            ret["image"] = ret["observation"]
+            obs = ret["observation"]
+            if obs.shape[-2:] != (64, 64):
+                obs = ndi.zoom(obs, (1, 1, 64 / obs.shape[-2], 64 / obs.shape[-1]), order=1)
+
+            ret["image"] = obs
             ret["is_first"] = ret["is_first"][:size]
             ret["is_last"] = ret["is_last"][:size]
 
@@ -392,6 +396,7 @@ class DiscDist:
         )
         log_pred = self.logits - torch.logsumexp(self.logits, -1, keepdim=True)
         target = target.squeeze(-2)
+        target = target.squeeze(-2)  #TODO why?
 
         return (target * log_pred).sum(-1)
 
@@ -500,6 +505,7 @@ class Bernoulli:
         _logits = self._dist.base_dist.logits
         log_probs0 = -F.softplus(_logits)
         log_probs1 = -F.softplus(-_logits)
+        x = x.squeeze(-1) # TODO: why another missing squeeze   
 
         return log_probs0 * (1 - x) + log_probs1 * x
 

@@ -1,0 +1,25 @@
+dreamerv3:
+
+bevore encoder, looking at data
+image is B, L, W, H, C
+after batching action is  16,64,6
+
+
+moved to C, W, H
+failed in obs_step doing a linear operation , input (16, 9728)  on weight (out features=512, in features=6912)
+possibly something to do with actions (which dim is not used? in the codebase)
+
+how we got to 9728 and not 6912?
+embed + deter = 9216 + 512
+
+but was extected 
+embed + deter = 6400 + 512
+
+the embedding size is calculated incorrectly, its set in the encoder output size after initialization
+noted size [64,64] and action num is defined in the config ( and is not taked from the environment)
+
+corrected obs size by resize wrapper, now have disagreement on decoder supervision head for channel axis (need to check MultiDecoder defined and used shapes)
+
+all is fixed, except for the logger, where we need to support saving videos
+
+

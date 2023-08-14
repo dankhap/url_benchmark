@@ -1,6 +1,6 @@
 from collections import OrderedDict, deque
 from typing import Any, NamedTuple
-
+import scipy.ndimage as ndi
 import dm_env
 import numpy as np
 from dm_control import manipulation, suite
@@ -118,6 +118,44 @@ class ActionRepeatWrapper(dm_env.Environment):
     def __getattr__(self, name):
         return getattr(self._env, name)
 
+class ResizeWrapper(dm_env.Environment):
+    def __init__(self, env, resize, pixels_key='pixels'):
+        self._env = env
+        self._resize = resize
+        self._pixels_key = pixels_key
+
+        wrapped_obs_spec = env.observation_spec()
+        assert pixels_key in wrapped_obs_spec
+
+        pixels_shape = wrapped_obs_spec[pixels_key].shape
+        self._scale = resize[0] / pixels_shape[0]
+        new_shape = (resize[0], resize[1], pixels_shape[2])
+        wrapped_obs_spec[pixels_key] = specs.Array(shape=new_shape, dtype=np.uint8, name='pixels')
+        self._obs_spec = wrapped_obs_spec
+
+    def _transform_observation(self, time_step):
+        obs = time_step.observation[self._pixels_key]
+        outobs = ndi.zoom(obs, (self._scale, self._scale, 1), order=1)
+        time_step.observation.pop(self._pixels_key)
+        time_step.observation[self._pixels_key] = outobs
+        return time_step
+
+    def reset(self):
+        time_step = self._env.reset()
+        return self._transform_observation(time_step)
+
+    def step(self, action):
+        time_step = self._env.step(action)
+        return self._transform_observation(time_step)
+
+    def observation_spec(self):
+        return self._obs_spec
+
+    def action_spec(self):
+        return self._env.action_spec()
+
+    def __getattr__(self, name):
+        return getattr(self._env, name)
 
 class FrameStackWrapper(dm_env.Environment):
     def __init__(self, env, num_frames, pixels_key='pixels'):
@@ -299,7 +337,7 @@ def _make_dmc(obs_type, domain, task, frame_stack, action_repeat, seed):
     return env
 
 
-def make(name, obs_type, frame_stack, action_repeat, seed):
+def make(name, obs_type, frame_stack, action_repeat, seed, resize=None):
     assert obs_type in ['states', 'pixels']
     domain, task = name.split('_', 1)
     domain = dict(cup='ball_in_cup').get(domain, domain)
@@ -308,6 +346,8 @@ def make(name, obs_type, frame_stack, action_repeat, seed):
     env = make_fn(obs_type, domain, task, frame_stack, action_repeat, seed)
 
     if obs_type == 'pixels':
+        if resize is not None:
+            env = ResizeWrapper(env, (64,64))
         env = FrameStackWrapper(env, frame_stack)
     else:
         env = ObservationDTypeWrapper(env, np.float32)
