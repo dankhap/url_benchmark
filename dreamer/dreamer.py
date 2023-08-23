@@ -1,4 +1,5 @@
 import argparse
+from tqdm import tqdm
 from collections import OrderedDict
 import collections
 import functools
@@ -43,7 +44,7 @@ class Dreamer(nn.Module):
         config.num_actions = acts.n if hasattr(acts, "n") else acts.shape[0]
 
         self._config = config
-        self._logger = logger
+        # self._logger = logger
         self._should_log = tools.Every(config.log_every)
         batch_steps = config.batch_size * config.batch_length
         self._should_train = tools.Every(batch_steps / config.train_ratio)
@@ -53,6 +54,7 @@ class Dreamer(nn.Module):
         self._metrics = {}
         self._buffer_loader = buffer_loader
         self._step = buffer_loader.dataset._storage._num_transitions
+        self._logger = tools.Logger(logger._log_dir, config.action_repeat * self._step)
         # self._step = count_steps(config.traindir)
         self._update_count = 0
         self._dataset = dataset
@@ -88,11 +90,12 @@ class Dreamer(nn.Module):
             plan2explore=lambda: expl.Plan2Explore(config, self._wm, reward),
         )[config.expl_behavior]().to(self._config.device)
 
-    def act(self, obs, reset, state=None, reward=None, training=True):
-        return self._policy(obs, state, training)
 
     def init_meta(self):
         return OrderedDict()
+
+    # def regress_meta(self, replay, step):
+    #     return {}
 
     def update_meta(self, obs, reset, state=None, reward=None, training=True):
         step = self._step
@@ -102,22 +105,31 @@ class Dreamer(nn.Module):
                 if self._should_pretrain()
                 else self._should_train(step)
             )
-            for _ in range(steps):
-                self._train(next(iter(self._dataset)))
+            itr_dataset = iter(self._dataset)
+            for _ in tqdm([i for i in range(steps)]):
+                self._train(next(itr_dataset))
                 self._update_count += 1
                 self._metrics["update_count"] = self._update_count
             if self._should_log(step):
                 for name, values in self._metrics.items():
-                    # self._logger.scalar(name, float(np.mean(values)))
-                    self._logger.log("train_" + name, float(np.mean(values)), step)
+                    self._logger.scalar(name, float(np.mean(values)))
+                    # self._logger.log("train_" + name, float(np.mean(values)), step)
                     self._metrics[name] = []
                 if self._config.video_pred_log:
                     openl = self._wm.video_pred(next(self._dataset))
                     self._logger.video("train_openl", to_np(openl))
-                # self._logger.write(fps=True)
+                self._logger.write(fps=True)
 
     def __call__(self, obs, reset, state=None, reward=None, training=True):
         return self.forward(obs, reset, state, reward, training)    
+
+    def act(self, obs, meta={}, step=None, eval_mode=False):
+        return self.forward(obs, meta["reset"], meta["state"], meta["reward"], training=not eval_mode)
+
+    @property
+    def update_task_every_step(self):
+        # return self._config.update_task_every_step
+        return 1
 
     def forward(self, obs, reset, state=None, reward=None, training=True):
         step = self._step

@@ -152,6 +152,7 @@ class WorldModel(nn.Module):
                     like = pred.log_prob(data[name])
                     losses[name] = -torch.mean(like) * self._scales.get(name, 1.0)
                 model_loss = sum(losses.values()) + kl_loss
+            # model loss doesnt have require grad?    
             metrics = self._model_opt(model_loss, self.parameters())
 
         metrics.update({f"{name}_loss": to_np(loss) for name, loss in losses.items()})
@@ -204,7 +205,7 @@ class WorldModel(nn.Module):
             embed[:6, :5], data["action"][:6, :5], data["is_first"][:6, :5]
         )
         recon = self.heads["decoder"](self.dynamics.get_feat(states))["image"].mode()[
-            :6
+                :6,:,:3
         ]
         reward_post = self.heads["reward"](self.dynamics.get_feat(states)).mode()[:6]
         init = {k: v[:, -1] for k, v in states.items()}
@@ -212,12 +213,12 @@ class WorldModel(nn.Module):
         openl = self.heads["decoder"](self.dynamics.get_feat(prior))["image"].mode()
         reward_prior = self.heads["reward"](self.dynamics.get_feat(prior)).mode()
         # observed image is given until 5 steps
-        model = torch.cat([recon[:, :5], openl], 1)
-        truth = data["image"][:6] + 0.5
+        model = torch.cat([recon[:, :5], openl[:,:,:3]], 1)
+        truth = data["image"][:6,:,:3] + 0.5
         model = model + 0.5
         error = (model - truth + 1.0) / 2.0
 
-        return torch.cat([truth, model, error], 2)
+        return torch.cat([truth, model, error], 3)
 
 
 class ImagBehavior(nn.Module):

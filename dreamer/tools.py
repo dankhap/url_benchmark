@@ -90,6 +90,9 @@ class Logger:
             self._writer.add_image(name, value, step)
         for name, value in self._videos.items():
             name = name if isinstance(name, str) else name.decode("utf-8")
+            # URLB hacks
+            value = value.transpose(0, 1, 3, 4, 2)
+            # End hacks
             if np.issubdtype(value.dtype, np.floating):
                 value = np.clip(255 * value, 0, 255).astype(np.uint8)
             B, T, H, W, C = value.shape
@@ -250,6 +253,8 @@ def sample_episodes(loader, length, seed=0, reload_freq=10):
         # preprocess, change observation to image and add is_first and is_last
         if type(ret) == dict and "observation" in ret:
             obs = ret["observation"]
+            if obs.shape[1] > 3:
+                obs = obs[:, :3]
             if obs.shape[-2:] != (64, 64):
                 obs = ndi.zoom(obs, (1, 1, 64 / obs.shape[-2], 64 / obs.shape[-1]), order=1)
 
