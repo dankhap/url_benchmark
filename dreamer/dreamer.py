@@ -105,8 +105,11 @@ class Dreamer(nn.Module):
                 if self._should_pretrain()
                 else self._should_train(step)
             )
+            print("loading episodes")
             itr_dataset = iter(self._dataset)
-            for _ in tqdm([i for i in range(steps)]):
+            for s in tqdm([i for i in range(steps)]):
+                if s == 0:
+                    print("finished loading")
                 self._train(next(itr_dataset))
                 self._update_count += 1
                 self._metrics["update_count"] = self._update_count
