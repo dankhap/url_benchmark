@@ -207,7 +207,7 @@ class RSSM(nn.Module):
         prev_action *= (1.0 / torch.clip(torch.abs(prev_action), min=1.0)).detach()
 
         if torch.sum(is_first) > 0:
-            is_first = is_first[:, None]
+            is_first = is_first[:, None] # should be (batch_size) -> (batch_size, 1), with action as (batch_size, action)
             prev_action *= 1.0 - is_first
             init_state = self.initial(len(is_first))
             for key, val in prev_state.items():
@@ -219,6 +219,10 @@ class RSSM(nn.Module):
                     val * (1.0 - is_first_r) + init_state[key] * is_first_r
                 )
 
+        # in non working state
+        # prev_action is (batch_size, action)
+        # prev_state elements are (batch_size, 512) and (batch_size, 32,32)
+        # embed is as expected (b,t,4096)
         prior = self.img_step(prev_state, prev_action, None, sample)
         if self._shared:
             post = self.img_step(prev_state, prev_action, embed, sample)

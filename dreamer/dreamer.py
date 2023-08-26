@@ -46,6 +46,7 @@ class Dreamer(nn.Module):
         self._config = config
         # self._logger = logger
         self._should_log = tools.Every(config.log_every)
+        self._should_log_wm = tools.Every(config.log_pretrain_every)
         batch_steps = config.batch_size * config.batch_length
         self._should_train = tools.Every(batch_steps / config.train_ratio)
         self._should_pretrain = tools.Once()
@@ -97,7 +98,7 @@ class Dreamer(nn.Module):
     # def regress_meta(self, replay, step):
     #     return {}
 
-    def update_meta(self, obs, reset, state=None, reward=None, training=True):
+    def update_meta(self, obs, reset, state=None, training=True):
         step = self._step
         if training:
             steps = (
@@ -110,9 +111,18 @@ class Dreamer(nn.Module):
             for s in tqdm([i for i in range(steps)]):
                 if s == 0:
                     print("finished loading")
-                self._train(next(itr_dataset))
+                self._train(next(itr_dataset), offline=True)
                 self._update_count += 1
                 self._metrics["update_count"] = self._update_count
+                if self._should_log_wm(s):
+                    for name, values in self._metrics.items():
+                        self._logger.scalar(name, float(np.mean(values)))
+                        # self._logger.log("train_" + name, float(np.mean(values)), step)
+                        self._metrics[name] = []
+                    if self._config.video_pred_log:
+                        openl = self._wm.video_pred(next(self._dataset))
+                        self._logger.video("train_openl", to_np(openl))
+                    self._logger.write(fps=True)
             if self._should_log(step):
                 for name, values in self._metrics.items():
                     self._logger.scalar(name, float(np.mean(values)))
@@ -123,18 +133,36 @@ class Dreamer(nn.Module):
                     self._logger.video("train_openl", to_np(openl))
                 self._logger.write(fps=True)
 
-    def __call__(self, obs, reset, state=None, reward=None, training=True):
-        return self.forward(obs, reset, state, reward, training)    
+    def __call__(self, obs, reset, state=None, training=True):
+        return self.forward(obs, reset, state, training)    
 
     def act(self, obs, meta={}, step=None, eval_mode=False):
-        return self.forward(obs, meta["reset"], meta["state"], meta["reward"], training=not eval_mode)
+        timestep = meta["reset"]
+        if 'state' in meta:
+            state = (meta['state']['latent'], meta['state']['action'])
+        else: 
+            state = None
+        reset = np.array([t.last() for t in [timestep]])
+        reward = np.array([meta["reward"]])
+        obs = {"image": np.expand_dims(obs, (0)), # expecting b t c h w
+               "reward": np.expand_dims(reward, (0)),
+               "is_first": np.expand_dims(timestep.first(), (0)),
+               "is_last": np.expand_dims(timestep.last(), (0))
+               }
+        policy, state = self.forward(obs, reset, state, training=not eval_mode)
+        state = {"latent": state[0], "action": state[1]}
+        meta["state"] = state
+        return policy, meta
+
+    def update(self, replay_iter, global_step):
+        return {}
 
     @property
     def update_task_every_step(self):
         # return self._config.update_task_every_step
         return 1
 
-    def forward(self, obs, reset, state=None, reward=None, training=True):
+    def forward(self, obs, reset, state=None, training=True):
         step = self._step
         if self._should_reset(step):
             state = None
@@ -181,7 +209,7 @@ class Dreamer(nn.Module):
         else:
             latent, action = state
         obs = self._wm.preprocess(obs)
-        embed = self._wm.encoder(obs)
+        embed = self._wm.encoder(obs) # input obs should have (b,t,3,64,64) and embed should have (b,t,4096) is_first (b,t)
         latent, _ = self._wm.dynamics.obs_step(
             latent, action, embed, obs["is_first"], self._config.collect_dyn_sample
         )
@@ -220,18 +248,19 @@ class Dreamer(nn.Module):
             return torch.clip(torchd.normal.Normal(action, amount).sample(), -1, 1)
         raise NotImplementedError(self._config.action_noise)
 
-    def _train(self, data):
+    def _train(self, data, offline):
         metrics = {}
-        post, context, mets = self._wm._train(data)
+        post, context, mets = self._wm._train(data, offline)
         metrics.update(mets)
         start = post
         reward = lambda f, s, a: self._wm.heads["reward"](
             self._wm.dynamics.get_feat(s)
         ).mode()
-        metrics.update(self._task_behavior._train(start, reward)[-1])
-        if self._config.expl_behavior != "greedy":
-            mets = self._expl_behavior.train(start, context, data)[-1]
-            metrics.update({"expl_" + key: value for key, value in mets.items()})
+        if not offline:
+            metrics.update(self._task_behavior._train(start, reward)[-1])
+            if self._config.expl_behavior != "greedy":
+                mets = self._expl_behavior.train(start, context, data)[-1]
+                metrics.update({"expl_" + key: value for key, value in mets.items()})
         for name, value in metrics.items():
             if not name in self._metrics.keys():
                 self._metrics[name] = [value]

@@ -118,12 +118,15 @@ class WorldModel(nn.Module):
         )
         self._scales = dict(reward=config.reward_scale, cont=config.cont_scale)
 
-    def _train(self, data):
+    def _train(self, data, offline=False):
         # action (batch_size, batch_length, act_dim)
         # image (batch_size, batch_length, h, w, ch)
         # reward (batch_size, batch_length)
         # discount (batch_size, batch_length)
         data = self.preprocess(data)
+        excluded_heads = []
+        if offline and self._config.offline_skip_reward:
+            excluded_heads = ["reward"]
 
         with tools.RequiresGrad(self):
             with torch.cuda.amp.autocast(self._use_amp):
@@ -138,7 +141,9 @@ class WorldModel(nn.Module):
                     post, prior, kl_free, dyn_scale, rep_scale
                 )
                 preds = {}
-                for name, head in self.heads.items():
+                # allow not learning  reward
+                included_heads = [(name, _) for name, _ in self.heads.items() if name not in excluded_heads]
+                for name, head in included_heads:
                     grad_head = name in self._config.grad_heads
                     feat = self.dynamics.get_feat(post)
                     feat = feat if grad_head else feat.detach()

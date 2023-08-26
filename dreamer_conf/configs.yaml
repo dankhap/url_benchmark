@@ -9,6 +9,7 @@ dreamer:
   eval_every: 1e4
   eval_episode_num: 10
   log_every: 1e4
+  log_pretrain_every: 500
   reset_every: 0
   # device: 'cuda:0'
   device: 'cuda'
@@ -31,6 +32,7 @@ dreamer:
   reward_EMA: True
 
   # Model
+  offline_skip_reward: True
   dyn_cell: 'gru_layer_norm'
   dyn_hidden: 512
   dyn_deter: 512

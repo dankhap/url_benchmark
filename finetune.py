@@ -243,7 +243,7 @@ class Workspace:
                                 self.global_frame)
                 self.eval()
 
-            meta = self.agent.update_meta(meta, self.global_step, time_step, self.dream_dataset)
+            meta = self.agent.update_meta(meta, self.global_step, time_step)
 
             if hasattr(self.agent, "regress_meta"):
                 repeat = self.cfg.action_repeat
@@ -257,18 +257,20 @@ class Workspace:
             # sample action
             with torch.no_grad(), utils.eval_mode(self.agent):
     # def act(self, obs, reset, state=None, reward=None, eval_mode=False):
-                meta = {
-                        "state": meta,
+
+                meta.update({
                         "reset": time_step.step_type,
                         "reward": time_step.reward,
-                        }
+                        })
                 action = self.agent.act(time_step.observation,
                                         meta,
                                         self.global_step,
                                         eval_mode=True)
                 if type(action) is tuple and len(action) == 2:
-                    action = action[0]
-                    meta = action[1]
+                    # handle output from dreamer
+                    action, meta = action
+                    action = action['action'].squeeze(0).cpu().numpy()
+                    
 
             # try to update the agent
             if not seed_until_step(self.global_step):
