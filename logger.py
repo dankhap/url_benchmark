@@ -67,7 +67,8 @@ class MetersGroup(object):
         with self._csv_file_name.open('w') as f:
             writer = csv.DictWriter(f,
                                     fieldnames=sorted(data.keys()),
-                                    restval=0.0)
+                                    restval=0.0,
+                                    extrasaction='ignore')
             writer.writeheader()
             for row in rows:
                 writer.writerow(row)
@@ -82,7 +83,8 @@ class MetersGroup(object):
             self._csv_file = self._csv_file_name.open('a')
             self._csv_writer = csv.DictWriter(self._csv_file,
                                               fieldnames=sorted(data.keys()),
-                                              restval=0.0)
+                                              restval=0.0,
+                                              extrasaction='ignore')
             if should_write_header:
                 self._csv_writer.writeheader()
 
@@ -145,7 +147,7 @@ class Logger(object):
             self._sw.add_scalar(key, value, step)
 
     def log(self, key, value, step):
-        assert key.startswith('train') or key.startswith('eval')
+        assert key.startswith('train') or key.startswith('eval') or key.startswith('wm')
         if type(value) == torch.Tensor:
             value = value.item()
         self._try_sw_log(key, value, step)
@@ -180,3 +182,4 @@ class LogAndDumpCtx:
 
     def __exit__(self, *args):
         self._logger.dump(self._step, self._ty)
+

@@ -8,7 +8,7 @@ import pathlib
 import re
 import time
 import uuid
-
+import wandb
 import numpy as np
 
 import torch
@@ -56,7 +56,7 @@ class TimeRecording:
 
 
 class Logger:
-    def __init__(self, logdir, step):
+    def __init__(self, logdir, step, log_wandb):
         self._logdir = logdir
         self._writer = SummaryWriter(log_dir=str(logdir), max_queue=1000)
         self._last_step = None
@@ -65,6 +65,7 @@ class Logger:
         self._images = {}
         self._videos = {}
         self.step = step
+        self._log_wandb = log_wandb
 
     def scalar(self, name, value):
         self._scalars[name] = float(value)
@@ -97,6 +98,8 @@ class Logger:
                 value = np.clip(255 * value, 0, 255).astype(np.uint8)
             B, T, H, W, C = value.shape
             value = value.transpose(1, 4, 2, 0, 3).reshape((1, T, C, H, B * W))
+            if self._log_wandb:
+                wandb.log({"video": wandb.Video(value, fps=16, format="gif")})
             self._writer.add_video(name, value, step, 16)
 
         self._writer.flush()
@@ -193,7 +196,7 @@ def from_generator(generator, batch_size, length):
         batch = []
         for _ in range(batch_size):  # TODO: sample until have only batch_length of episodes
             elem = next(generator) 
-            while elem["observation"].shape[0] < length:
+            while elem["image"].shape[0] < length:
                 elem = next(generator)
             batch.append(elem)
         data = {}
@@ -261,6 +264,7 @@ def sample_episodes(loader, length, seed=0, reload_freq=10):
             ret["image"] = obs
             ret["is_first"] = ret["is_first"][:size]
             ret["is_last"] = ret["is_last"][:size]
+            ret.pop("observation")
 
         samples_count += 1
         yield ret

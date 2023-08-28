@@ -67,8 +67,11 @@ class Workspace:
             print("WARRNING: using buffer dir as work dir, data can get changed")
             self.buffer_dir = Path(cfg.buffer_dir)
 
+
         print(f'workspace: {self.work_dir}')
         print(f'slurm job id: {os.environ.get("SLURM_JOB_ID", "none")}')
+        # TODO: pretty pring the configuration
+        print(cfg)
 
         self.cfg = cfg
         utils.set_seed_everywhere(cfg.seed)
@@ -82,7 +85,12 @@ class Workspace:
                 cfg.obs_type,
                 str(cfg.seed),
                 "finetune"])
-            wandb.init(project="urlb", entity="urlb-gqn-test", group=cfg.group_name,name=exp_name, config=cfg)
+            wandb.init(project="dreamerv3_urlb",
+                entity="urlb-gqn-test",
+                group=cfg.group_name,
+                name=exp_name,
+                # sync_tensorboard=True,
+                config=cfg)
 
         self.logger = Logger(self.work_dir,
                              use_tb=cfg.use_tb,
@@ -146,7 +154,8 @@ class Workspace:
                 cfg.dreamer_conf.dreamer,
                 self.replay_loader,
                 self.logger,
-                self.dream_dataset
+                self.dream_dataset,
+                self.video_recorder
             ).to(self.device)
 
     @property

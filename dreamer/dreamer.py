@@ -32,7 +32,7 @@ to_np = lambda x: x.detach().cpu().numpy()
 
 
 class Dreamer(nn.Module):
-    def __init__(self, obs_space, act_space, config, buffer_loader,  logger, dataset):
+    def __init__(self, obs_space, act_space, config, buffer_loader,  logger, dataset, video_recorder):
         super(Dreamer, self).__init__()
 
         # reset config
@@ -55,10 +55,14 @@ class Dreamer(nn.Module):
         self._metrics = {}
         self._buffer_loader = buffer_loader
         self._step = buffer_loader.dataset._storage._num_transitions
-        self._logger = tools.Logger(logger._log_dir, config.action_repeat * self._step)
+        self._logger = tools.Logger(logger._log_dir / "tb/", config.action_repeat * self._step, logger.use_wandb)
+        self._ulogger = logger
+        self._video_recorder = video_recorder
+
         # self._step = count_steps(config.traindir)
         self._update_count = 0
         self._dataset = dataset
+        self._initial_meta_ready = False
 
         # Schedules.
         config._set_flag("allow_objects", True)
@@ -93,6 +97,9 @@ class Dreamer(nn.Module):
 
 
     def init_meta(self):
+        if self._initial_meta_ready:
+            return {}
+        self._initial_meta_ready = True
         step = self._step
         steps = (
             self._config.pretrain
@@ -109,9 +116,9 @@ class Dreamer(nn.Module):
             self._metrics["update_count"] = self._update_count
             wm_metrics = {"wm"+name: values for name, values in self._metrics.items()}
             if self._should_log_wm(s):
-                for name, values in wm_metrics.items():
-                    self._logger.scalar(name, float(np.mean(values)))
-                self._logger.write(fps=True)
+                with self._ulogger.log_and_dump_ctx(s, ty='train') as log:
+                    for name, values in wm_metrics.items():
+                        log("train_" + name, float(np.mean(values)))
         if self._should_log(step):
             for name, values in self._metrics.items():
                 self._logger.scalar(name, float(np.mean(values)))
@@ -414,7 +421,7 @@ def main(config):
     config.traindir.mkdir(parents=True, exist_ok=True)
     config.evaldir.mkdir(parents=True, exist_ok=True)
     step = count_steps(config.traindir)
-    logger = tools.Logger(logdir, config.action_repeat * step)
+    logger = tools.Logger(logdir, config.action_repeat * step, False)
 
     print("Create envs.")
     if config.offline_traindir:
