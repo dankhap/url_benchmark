@@ -93,50 +93,47 @@ class Dreamer(nn.Module):
 
 
     def init_meta(self):
-        return OrderedDict()
+        step = self._step
+        steps = (
+            self._config.pretrain
+            if self._should_pretrain()
+            else self._should_train(step)
+        )
+        print("loading episodes")
+        itr_dataset = iter(self._dataset)
+        for s in tqdm([i for i in range(steps)]):
+            self._train(next(itr_dataset), offline=True)
+            if s == 0:
+                print("finished loading")
+            self._update_count += 1
+            self._metrics["update_count"] = self._update_count
+            wm_metrics = {"wm"+name: values for name, values in self._metrics.items()}
+            if self._should_log_wm(s):
+                for name, values in wm_metrics.items():
+                    self._logger.scalar(name, float(np.mean(values)))
+                self._logger.write(fps=True)
+        if self._should_log(step):
+            for name, values in self._metrics.items():
+                self._logger.scalar(name, float(np.mean(values)))
+                # self._logger.log("train_" + name, float(np.mean(values)), step)
+                self._metrics[name] = []
+            if self._config.video_pred_log:
+                openl = self._wm.video_pred(next(self._dataset))
+                self._logger.video("train_openl", to_np(openl))
+            self._logger.write(fps=True)
+        return {}
 
     # def regress_meta(self, replay, step):
     #     return {}
 
-    def update_meta(self, obs, reset, state=None, training=True):
-        step = self._step
-        if training:
-            steps = (
-                self._config.pretrain
-                if self._should_pretrain()
-                else self._should_train(step)
-            )
-            print("loading episodes")
-            itr_dataset = iter(self._dataset)
-            for s in tqdm([i for i in range(steps)]):
-                if s == 0:
-                    print("finished loading")
-                self._train(next(itr_dataset), offline=True)
-                self._update_count += 1
-                self._metrics["update_count"] = self._update_count
-                if self._should_log_wm(s):
-                    for name, values in self._metrics.items():
-                        self._logger.scalar(name, float(np.mean(values)))
-                        # self._logger.log("train_" + name, float(np.mean(values)), step)
-                        self._metrics[name] = []
-                    if self._config.video_pred_log:
-                        openl = self._wm.video_pred(next(self._dataset))
-                        self._logger.video("train_openl", to_np(openl))
-                    self._logger.write(fps=True)
-            if self._should_log(step):
-                for name, values in self._metrics.items():
-                    self._logger.scalar(name, float(np.mean(values)))
-                    # self._logger.log("train_" + name, float(np.mean(values)), step)
-                    self._metrics[name] = []
-                if self._config.video_pred_log:
-                    openl = self._wm.video_pred(next(self._dataset))
-                    self._logger.video("train_openl", to_np(openl))
-                self._logger.write(fps=True)
+    def update_meta(self, meta, reset, state=None, training=True):
+        return meta
 
     def __call__(self, obs, reset, state=None, training=True):
         return self.forward(obs, reset, state, training)    
 
     def act(self, obs, meta={}, step=None, eval_mode=False):
+        meta = meta['extra_meta']
         timestep = meta["reset"]
         if 'state' in meta:
             state = (meta['state']['latent'], meta['state']['action'])
@@ -151,7 +148,8 @@ class Dreamer(nn.Module):
                }
         policy, state = self.forward(obs, reset, state, training=not eval_mode)
         state = {"latent": state[0], "action": state[1]}
-        meta["state"] = state
+        meta['extra_meta'] = meta
+        meta['extra_meta']['state'] = state
         return policy, meta
 
     def update(self, replay_iter, global_step):

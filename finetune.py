@@ -258,10 +258,10 @@ class Workspace:
             with torch.no_grad(), utils.eval_mode(self.agent):
     # def act(self, obs, reset, state=None, reward=None, eval_mode=False):
 
-                meta.update({
-                        "reset": time_step.step_type,
-                        "reward": time_step.reward,
-                        })
+                meta.update({'extra_meta': {
+                                "reset": time_step.step_type,
+                                "reward": time_step.reward,
+                                }})
                 action = self.agent.act(time_step.observation,
                                         meta,
                                         self.global_step,
@@ -270,6 +270,8 @@ class Workspace:
                     # handle output from dreamer
                     action, meta = action
                     action = action['action'].squeeze(0).cpu().numpy()
+                    meta = {'extra_meta': meta}
+                    # should be a numpy array of shape (6,)
                     
 
             # try to update the agent

@@ -4,6 +4,7 @@ import io
 import random
 import traceback
 from collections import defaultdict
+from typing import OrderedDict
 
 import numpy as np
 import torch
@@ -44,6 +45,9 @@ class ReplayBufferStorage:
         return self._num_transitions
 
     def add(self, time_step, meta):
+        # added for dreamer
+        if 'extra_meta' in meta:
+            meta = OrderedDict({key: value for key, value in meta.items() if key != 'extra_meta'})
         for key, value in meta.items():
             self._current_episode[key].append(value)
         for spec in self._data_specs:

@@ -84,3 +84,5 @@ rnd_quadruped_states_buffer16
 rnd_walker_states_buffer16
 icm_walker_pixels_buffer_bak/buffer
 buffers
+icm_walker_pixels_buffer_bak/small/buffer
+rnd_walker_pixels_buffer16_2m/buffer
