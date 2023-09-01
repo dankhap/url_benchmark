@@ -32,7 +32,7 @@ to_np = lambda x: x.detach().cpu().numpy()
 
 
 class Dreamer(nn.Module):
-    def __init__(self, obs_space, act_space, config, buffer_loader,  logger, dataset, video_recorder):
+    def __init__(self, obs_space, act_space, config, buffer_loader,  logger, offline_data, online_data, video_recorder):
         super(Dreamer, self).__init__()
 
         # reset config
@@ -61,7 +61,8 @@ class Dreamer(nn.Module):
 
         # self._step = count_steps(config.traindir)
         self._update_count = 0
-        self._dataset = dataset
+        self._off_dataset = offline_data
+        self._on_dataset = online_data
         self._initial_meta_ready = False
 
         # Schedules.
@@ -99,6 +100,7 @@ class Dreamer(nn.Module):
     def init_meta(self):
         if self._initial_meta_ready:
             return {}
+        print("Phase I: Pretrain Worls model on offline data")
         self._initial_meta_ready = True
         step = self._step
         steps = (
@@ -107,9 +109,11 @@ class Dreamer(nn.Module):
             else self._should_train(step)
         )
         print("loading episodes")
-        itr_dataset = iter(self._dataset)
+        itr_dataset = iter(self._off_dataset)
         for s in tqdm([i for i in range(steps)]):
-            self._train(next(itr_dataset), offline=True)
+            self._train(online_data=None, 
+                        offline_data=next(itr_dataset),
+                        offline=True)
             if s == 0:
                 print("finished loading")
             self._update_count += 1
@@ -120,14 +124,7 @@ class Dreamer(nn.Module):
                     for name, values in wm_metrics.items():
                         log("train_" + name, float(np.mean(values)))
         if self._should_log(step):
-            for name, values in self._metrics.items():
-                self._logger.scalar(name, float(np.mean(values)))
-                # self._logger.log("train_" + name, float(np.mean(values)), step)
-                self._metrics[name] = []
-            if self._config.video_pred_log:
-                openl = self._wm.video_pred(next(self._dataset))
-                self._logger.video("train_openl", to_np(openl))
-            self._logger.write(fps=True)
+            self.log_metrics(next(itr_dataset))
         return {}
 
     # def regress_meta(self, replay, step):
@@ -160,7 +157,30 @@ class Dreamer(nn.Module):
         return policy, meta
 
     def update(self, replay_iter, global_step):
+        steps = (
+            self._config.pretrain
+            if self._should_pretrain()
+            else self._should_train(global_step)
+        )
+        steps = self._config.reward_finetune_steps
+        on_iter = iter(self._on_dataset)
+        off_iter = iter(self._off_dataset)
+        for _ in range(steps):
+            self._train(next(on_iter), next(off_iter), offline=False)
+            self._update_count += 1
+            self._metrics["update_count"] = self._update_count
+        if self._should_log(global_step):
+            self.log_metrics(next(on_iter))
         return {}
+
+    def log_metrics(self, video_data):
+        for name, values in self._metrics.items():
+            self._logger.scalar(name, float(np.mean(values)))
+            self._metrics[name] = []
+        if self._config.video_pred_log:
+            openl = self._wm.video_pred(video_data)
+            self._logger.video("train_openl", to_np(openl))
+        self._logger.write(fps=True)
 
     @property
     def update_task_every_step(self):
@@ -178,24 +198,6 @@ class Dreamer(nn.Module):
                     state[0][key][i] *= mask[i]
             for i in range(len(state[1])):
                 state[1][i] *= mask[i]
-        if training:
-            steps = (
-                self._config.pretrain
-                if self._should_pretrain()
-                else self._should_train(step)
-            )
-            for _ in range(steps):
-                self._train(next(iter(self._dataset)))
-                self._update_count += 1
-                self._metrics["update_count"] = self._update_count
-            if self._should_log(step):
-                for name, values in self._metrics.items():
-                    self._logger.scalar(name, float(np.mean(values)))
-                    self._metrics[name] = []
-                if self._config.video_pred_log:
-                    openl = self._wm.video_pred(next(self._dataset))
-                    self._logger.video("train_openl", to_np(openl))
-                self._logger.write(fps=True)
 
         policy_output, state = self._policy(obs, state, training)
 
@@ -203,6 +205,7 @@ class Dreamer(nn.Module):
             self._step += len(reset)
             self._logger.step = self._config.action_repeat * self._step
         return policy_output, state
+    
 
     def _policy(self, obs, state, training):
         if state is None:
@@ -253,15 +256,24 @@ class Dreamer(nn.Module):
             return torch.clip(torchd.normal.Normal(action, amount).sample(), -1, 1)
         raise NotImplementedError(self._config.action_noise)
 
-    def _train(self, data, offline):
+    def _select_datasource(self, online_data, offline_data, metrics):
+        return offline_data
+
+    def _train(self, online_data, offline_data, offline):
+        if offline:
+            wm_data = offline_data
+        else :
+            wm_data = online_data
         metrics = {}
-        post, context, mets = self._wm._train(data, offline)
+        post, context, mets = self._wm._train(wm_data, offline)
         metrics.update(mets)
         start = post
         reward = lambda f, s, a: self._wm.heads["reward"](
             self._wm.dynamics.get_feat(s)
         ).mode()
         if not offline:
+            data_to_policy = self._select_datasource(online_data, offline_data, mets)
+            start, context = self._wm.encode_online(data_to_policy)
             metrics.update(self._task_behavior._train(start, reward)[-1])
             if self._config.expl_behavior != "greedy":
                 mets = self._expl_behavior.train(start, context, data)[-1]

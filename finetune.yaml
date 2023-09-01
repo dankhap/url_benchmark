@@ -20,6 +20,7 @@ eval_every_frames: 10000
 num_eval_episodes: 10
 # pretrained
 snapshot_ts: 2000000
+snapshots: [10]
 # default snapshot_base_dir: ./pretrained_models
 snapshot_base_dir: /code/url_benchmark/models/
 # replay buffer

@@ -75,6 +75,7 @@ dreamer:
   batch_length: 64
   train_ratio: 512
   pretrain: 100
+  reward_finetune_steps: 100
   model_lr: 1e-4
   opt_eps: 1e-8
   grad_clip: 1000

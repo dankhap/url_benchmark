@@ -56,10 +56,11 @@ def make_agent(obs_type, obs_spec, action_spec, num_expl_steps, load_only_encode
     return hydra.utils.instantiate(cfg)
 
 
+
 class Workspace:
     def __init__(self, cfg):
         self.work_dir = Path.cwd()
-        self.buffer_dir = self.work_dir
+        # self.buffer_dir = self.work_dir
         if cfg.buffer_dir != "":
             print(f'buffer_dir: {cfg.buffer_dir}')
             # shutil.copytree(cfg.buffer_dir, str(self.work_dir))
@@ -123,16 +124,16 @@ class Workspace:
                       specs.Array((1,), np.float32, 'reward'),
                       specs.Array((1,), np.float32, 'discount'))
 
+
         # create data storage
         self.replay_storage = ReplayBufferStorage(data_specs, meta_specs,
-                                                  self.buffer_dir / 'buffer')
+                                                  self.work_dir / 'buffer')
         # create replay buffer
         self.replay_loader = make_orig_replay_loader(self.replay_storage,
                                                 cfg.replay_buffer_size,
                                                 cfg.batch_size,
                                                 cfg.replay_buffer_num_workers,
                                                 cfg.save_buffer, cfg.nstep, cfg.discount)
-        self.dream_dataset = make_dataset_urlb(self.replay_loader, cfg.dreamer_conf.dreamer)
         self._replay_iter = None
 
         # create video recorders
@@ -147,6 +148,16 @@ class Workspace:
 
         if "dreamer_conf" in cfg:
             assert cfg.device == cfg.dreamer_conf.dreamer.device
+            self.replay_offline_storage = ReplayBufferStorage(data_specs, meta_specs,
+                                                      self.buffer_dir / 'buffer')
+            # create replay buffer
+            self.replay_offline_loader = make_orig_replay_loader(self.replay_offline_storage,
+                                                    cfg.replay_buffer_size,
+                                                    cfg.batch_size,
+                                                    cfg.replay_buffer_num_workers,
+                                                    cfg.save_buffer, cfg.nstep, cfg.discount)
+            self.dream_online_dataset = make_dataset_urlb(self.replay_loader, cfg.dreamer_conf.dreamer)
+            self.dream_offline_dataset = make_dataset_urlb(self.replay_offline_loader, cfg.dreamer_conf.dreamer)
             obs_spec = self.train_env.observation_spec()
             self.agent = Dreamer(
                 obs_spec,
@@ -154,7 +165,8 @@ class Workspace:
                 cfg.dreamer_conf.dreamer,
                 self.replay_loader,
                 self.logger,
-                self.dream_dataset,
+                self.dream_offline_dataset,
+                self.dream_online_dataset,
                 self.video_recorder
             ).to(self.device)
 
@@ -218,6 +230,7 @@ class Workspace:
         self.replay_storage.add(time_step, meta)
         self.train_video_recorder.init(time_step.observation)
         metrics = None
+        started_seed = False
         while train_until_step(self.global_step):
             if time_step.last():
                 self._global_episode += 1
@@ -285,8 +298,6 @@ class Workspace:
 
             # try to update the agent
             if not seed_until_step(self.global_step):
-
-
                 batches_per_step = 1
                 if self.cfg.batch_sched == 'linear':
                     batches_per_step = self.get_bathch_count_linear(self.global_step)
@@ -295,6 +306,10 @@ class Workspace:
                 for _ in range(int(batches_per_step)):
                     metrics = self.agent.update(self.replay_iter, self.global_step)
                     self.logger.log_metrics(metrics, self.global_frame, ty='train')
+            else:
+                if not started_seed:
+                    started_seed = True
+                    print('Phase II: started online data seed')
 
             # take env step
             time_step = self.train_env.step(action)

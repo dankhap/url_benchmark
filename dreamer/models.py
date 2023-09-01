@@ -118,6 +118,31 @@ class WorldModel(nn.Module):
         )
         self._scales = dict(reward=config.reward_scale, cont=config.cont_scale)
 
+    def encode_online(self, data):
+        data = self.preprocess(data)
+        embed = self.encoder(data)
+        post, prior = self.dynamics.observe(
+            embed, data["action"], data["is_first"]
+        )
+        preds = {}
+        for name, head in self.heads.items():
+            grad_head = name in self._config.grad_heads
+            feat = self.dynamics.get_feat(post)
+            feat = feat if grad_head else feat.detach()
+            pred = head(feat)
+            if type(pred) is dict:
+                preds.update(pred)
+            else:
+                preds[name] = pred
+        context = dict(
+            embed=embed,
+            feat=self.dynamics.get_feat(post),
+            kl=None,
+            postent=self.dynamics.get_dist(post).entropy(),
+        )
+        post = {k: v.detach() for k, v in post.items()}
+        return post, context
+
     def _train(self, data, offline=False):
         # action (batch_size, batch_length, act_dim)
         # image (batch_size, batch_length, h, w, ch)
