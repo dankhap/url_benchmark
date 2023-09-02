@@ -188,6 +188,23 @@ class Workspace:
             self._replay_iter = iter(self.replay_loader)
         return self._replay_iter
 
+    def act_warpper(self, time_step, meta, eval_mode):
+        meta.update({'extra_meta': {
+                        "reset": time_step.step_type,
+                        "reward": time_step.reward,
+                        }})
+        action = self.agent.act(time_step.observation,
+                                meta,
+                                self.global_step,
+                                eval_mode=eval_mode)
+        if type(action) is tuple and len(action) == 2:
+            # handle output from dreamer
+            action, meta = action
+            action = action['action'].squeeze(0).cpu().numpy()
+            meta = {'extra_meta': meta}
+            # should be a numpy array of shape (6,)
+        return action, meta
+
     def eval(self):
         step, episode, total_reward = 0, 0, 0
         eval_until_episode = utils.Until(self.cfg.num_eval_episodes)
@@ -197,10 +214,7 @@ class Workspace:
             self.video_recorder.init(self.eval_env, enabled=(episode == 0))
             while not time_step.last():
                 with torch.no_grad(), utils.eval_mode(self.agent):
-                    action = self.agent.act(time_step.observation,
-                                            meta,
-                                            self.global_step,
-                                            eval_mode=True)
+                    action, meta = self.act_warpper(time_step, meta, eval_mode=True)
                 time_step = self.eval_env.step(action)
                 self.video_recorder.record(self.eval_env)
                 total_reward += time_step.reward
@@ -214,6 +228,7 @@ class Workspace:
             log('episode_length', step * self.cfg.action_repeat / episode)
             log('episode', self.global_episode)
             log('step', self.global_step)
+
 
     def train(self):
         # predicates
@@ -279,21 +294,7 @@ class Workspace:
             # sample action
             with torch.no_grad(), utils.eval_mode(self.agent):
     # def act(self, obs, reset, state=None, reward=None, eval_mode=False):
-
-                meta.update({'extra_meta': {
-                                "reset": time_step.step_type,
-                                "reward": time_step.reward,
-                                }})
-                action = self.agent.act(time_step.observation,
-                                        meta,
-                                        self.global_step,
-                                        eval_mode=True)
-                if type(action) is tuple and len(action) == 2:
-                    # handle output from dreamer
-                    action, meta = action
-                    action = action['action'].squeeze(0).cpu().numpy()
-                    meta = {'extra_meta': meta}
-                    # should be a numpy array of shape (6,)
+                action, meta = self.act_warpper(time_step, meta, eval_mode=True)
                     
 
             # try to update the agent
