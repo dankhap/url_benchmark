@@ -1,13 +1,9 @@
 import argparse
 from tqdm import tqdm
-from collections import OrderedDict
-import collections
 import functools
 import os
 import pathlib
 import sys
-import traceback
-import warnings
 
 os.environ["MUJOCO_GL"] = "egl"
 
@@ -46,6 +42,7 @@ class Dreamer(nn.Module):
         self._config = config
         # self._logger = logger
         self._should_log = tools.Every(config.log_every)
+        self._should_log_policy = tools.Every(1)
         self._should_log_wm = tools.Every(config.log_pretrain_every)
         batch_steps = config.batch_size * config.batch_length
         self._should_train = tools.Every(batch_steps / config.train_ratio)
@@ -118,13 +115,8 @@ class Dreamer(nn.Module):
                 print("finished loading")
             self._update_count += 1
             self._metrics["update_count"] = self._update_count
-            wm_metrics = {"wm"+name: values for name, values in self._metrics.items()}
             if self._should_log_wm(s):
-                with self._ulogger.log_and_dump_ctx(s, ty='train') as log:
-                    for name, values in wm_metrics.items():
-                        log("train_" + name, float(np.mean(values)))
-        if self._should_log(step):
-            self.log_metrics(next(itr_dataset))
+                self.log_metrics(next(itr_dataset), s, sub_prefix="wm")
         return {}
 
     # def regress_meta(self, replay, step):
@@ -169,11 +161,14 @@ class Dreamer(nn.Module):
             self._train(next(on_iter), next(off_iter), offline=False)
             self._update_count += 1
             self._metrics["update_count"] = self._update_count
-        if self._should_log(global_step):
-            self.log_metrics(next(on_iter))
+        if self._should_log_policy(global_step):
+            self.log_metrics(next(on_iter), global_step)
         return {}
 
-    def log_metrics(self, video_data):
+    def log_metrics(self, video_data, step=1, sub_prefix=""):
+        with self._ulogger.log_and_dump_ctx(step, ty='train') as log:
+            for name, values in self._metrics.items():
+                log(f"train_{sub_prefix}_{name}", float(np.mean(values)))
         for name, values in self._metrics.items():
             self._logger.scalar(name, float(np.mean(values)))
             self._metrics[name] = []

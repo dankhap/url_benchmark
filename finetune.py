@@ -1,26 +1,23 @@
 import os
-import enum
+import wandb
+import hydra
+from omegaconf import OmegaConf
+import numpy as np
+import torch
+from pathlib import Path
+from time import sleep
 import shutil
 import traceback
-from dreamer.dreamer import Dreamer
-from dreamer.dreamer import make_dataset_urlb
-
-
 import warnings
 
 os.environ['MKL_SERVICE_FORCE_INTEL'] = '1'
-os.environ['MUJOCO_GL'] = 'osmesa'
+os.environ['MUJOCO_GL'] = 'egl'
 
-os.environ['MESA_GL_VERSION_OVERRIDE'] = '3.3'
-os.environ['MESA_GLSL_VERSION_OVERRIDE'] = '330'
+# os.environ['MESA_GL_VERSION_OVERRIDE'] = '3.3'
+# os.environ['MESA_GLSL_VERSION_OVERRIDE'] = '330'
 
-from pathlib import Path
-from time import sleep
 
 from dm_env import specs
-import hydra
-import numpy as np
-import torch
 
 import dmc
 from logger import Logger
@@ -28,7 +25,8 @@ from replay_buffer import ReplayBufferStorage, make_orig_replay_loader, make_rep
 import utils
 from video import TrainVideoRecorder, VideoRecorder
 
-import wandb
+from dreamer.dreamer import Dreamer
+from dreamer.dreamer import make_dataset_urlb
 
 warnings.filterwarnings('ignore', category=DeprecationWarning)
 
@@ -80,6 +78,7 @@ class Workspace:
 
         # create logger
         if cfg.use_wandb:
+            full_config = OmegaConf.to_container(cfg, resolve=True)
             exp_name = '_'.join([cfg.experiment,
                 cfg.agent.name,
                 cfg.task,
@@ -91,7 +90,7 @@ class Workspace:
                 group=cfg.group_name,
                 name=exp_name,
                 # sync_tensorboard=True,
-                config=cfg)
+                config=full_config)
 
         self.logger = Logger(self.work_dir,
                              use_tb=cfg.use_tb,
@@ -246,6 +245,8 @@ class Workspace:
         self.train_video_recorder.init(time_step.observation)
         metrics = None
         started_seed = False
+        started_online_train = False
+
         while train_until_step(self.global_step):
             if time_step.last():
                 self._global_episode += 1
@@ -304,6 +305,9 @@ class Workspace:
                     batches_per_step = self.get_bathch_count_linear(self.global_step)
                 elif self.cfg.batch_sched == 'fast':
                     batches_per_step = self.get_num_of_batches_per_update(self.global_step)
+                if not started_online_train:
+                    started_online_train = True
+                    print('Phase III: train online data for', batches_per_step, 'batches')
                 for _ in range(int(batches_per_step)):
                     metrics = self.agent.update(self.replay_iter, self.global_step)
                     self.logger.log_metrics(metrics, self.global_frame, ty='train')
