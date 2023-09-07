@@ -11,7 +11,7 @@ python finetune.py \
 	seed=8 \
 	num_seed_frames=4000 \
 	replay_buffer_num_workers=0 \
-	buffer_dir=/home/daniel/code/url_benchmark/buffers/icm_walker_pixels_buffer_bak/ \
+	buffer_dir=/code/url_benchmark/icm_walker_pixels_buffer_bak/small/ \
 	load_only_encoder=true \
 	dreamer_conf.dreamer.pretrain=10 \
 	dreamer_conf.dreamer.reward_finetune_steps=5 \
