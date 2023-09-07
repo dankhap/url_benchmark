@@ -154,7 +154,6 @@ class Dreamer(nn.Module):
             if self._should_pretrain()
             else self._should_train(global_step)
         )
-        steps = self._config.reward_finetune_steps
         on_iter = iter(self._on_dataset)
         off_iter = iter(self._off_dataset)
         for _ in range(steps):
