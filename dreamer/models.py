@@ -208,6 +208,7 @@ class WorldModel(nn.Module):
         post = {k: v.detach() for k, v in post.items()}
         return post, context, metrics
 
+    # this function is called during both rollout and training
     def preprocess(self, obs):
         obs = obs.copy()
         obs["image"] = torch.Tensor(obs["image"]) / 255.0 - 0.5

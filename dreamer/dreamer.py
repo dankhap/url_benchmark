@@ -28,7 +28,16 @@ to_np = lambda x: x.detach().cpu().numpy()
 
 
 class Dreamer(nn.Module):
-    def __init__(self, obs_space, act_space, config, buffer_loader,  logger, offline_data, online_data, video_recorder):
+    def __init__(self,
+                 obs_space,
+                 act_space,
+                 config,
+                 buffer_loader,
+                 logger,
+                 offline_data,
+                 online_data,
+                 video_recorder,
+                 init_meta=False):
         super(Dreamer, self).__init__()
 
         # reset config
@@ -45,6 +54,7 @@ class Dreamer(nn.Module):
         self._should_log_policy = tools.Every(1)
         self._should_log_wm = tools.Every(config.log_pretrain_every)
         batch_steps = config.batch_size * config.batch_length
+        # TODO:  Edit to run 1/4 of the times then the original dreamer as it realtes to number of parallel runs
         self._should_train = tools.Every(batch_steps / config.train_ratio)
         self._should_pretrain = tools.Once()
         self._should_reset = tools.Every(config.reset_every)
@@ -60,7 +70,7 @@ class Dreamer(nn.Module):
         self._update_count = 0
         self._off_dataset = offline_data
         self._on_dataset = online_data
-        self._initial_meta_ready = False
+        self._initial_meta_ready = init_meta
 
         # Schedules.
         config._set_flag("allow_objects", True)
@@ -154,14 +164,14 @@ class Dreamer(nn.Module):
             if self._should_pretrain()
             else self._should_train(global_step)
         )
-        steps = self._config.reward_finetune_steps
+        steps = self._config.reward_finetune_steps if self._config.reward_finetune_steps > 0 else steps
         on_iter = iter(self._on_dataset)
         off_iter = iter(self._off_dataset)
         for _ in range(steps):
             self._train(next(on_iter), next(off_iter), offline=False)
             self._update_count += 1
             self._metrics["update_count"] = self._update_count
-        if self._should_log_policy(global_step):
+        if steps > 0 and self._should_log_policy(global_step):
             self.log_metrics(next(on_iter), global_step)
         return {}
 
@@ -269,9 +279,10 @@ class Dreamer(nn.Module):
         if not offline:
             data_to_policy = self._select_datasource(online_data, offline_data, mets)
             start, context = self._wm.encode_online(data_to_policy)
-            metrics.update(self._task_behavior._train(start, reward)[-1])
+            if not self._config.no_task:
+                metrics.update(self._task_behavior._train(start, reward)[-1])
             if self._config.expl_behavior != "greedy":
-                mets = self._expl_behavior.train(start, context, data)[-1]
+                mets = self._expl_behavior._train(start, context, data_to_policy)[-1]
                 metrics.update({"expl_" + key: value for key, value in mets.items()})
         for name, value in metrics.items():
             if not name in self._metrics.keys():
