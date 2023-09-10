@@ -1,3 +1,5 @@
+import warnings
+warnings.filterwarnings('ignore', category=DeprecationWarning)
 import os
 import wandb
 import hydra
@@ -7,12 +9,14 @@ import torch
 from pathlib import Path
 from time import sleep
 import shutil
-import traceback
 import warnings
 
+# os.environ["WANDB__SERVICE_WAIT"] = "300";
+os.environ["WANDB_MODE"] = "offline"
 os.environ['MKL_SERVICE_FORCE_INTEL'] = '1'
 os.environ['MUJOCO_GL'] = 'egl'
 
+# os.environ['MUJOCO_GL'] = 'osmesa'
 # os.environ['MESA_GL_VERSION_OVERRIDE'] = '3.3'
 # os.environ['MESA_GLSL_VERSION_OVERRIDE'] = '330'
 
@@ -20,30 +24,16 @@ os.environ['MUJOCO_GL'] = 'egl'
 from dm_env import specs
 
 import dmc
+import utils
 from logger import Logger
 from replay_buffer import ReplayBufferStorage, make_orig_replay_loader, make_replay_loader
-import utils
 from video import TrainVideoRecorder, VideoRecorder
 
 from dreamer.dreamer import Dreamer
 from dreamer.dreamer import make_dataset_urlb
 
-warnings.filterwarnings('ignore', category=DeprecationWarning)
-
-
-
-
 
 torch.backends.cudnn.benchmark = True
-
-def _iterate_episodes(dataset):
-    try:
-        dataset._try_fetch()
-    except:
-        traceback.print_exc()
-    for _, episode in dataset._episodes.items():
-        episode['image'] = episode['observation']
-        yield episode
 
 def make_agent(obs_type, obs_spec, action_spec, num_expl_steps, load_only_encoder, cfg):
     cfg.obs_type = obs_type
@@ -52,7 +42,6 @@ def make_agent(obs_type, obs_spec, action_spec, num_expl_steps, load_only_encode
     cfg.num_expl_steps = num_expl_steps
     cfg.load_only_encoder = load_only_encoder
     return hydra.utils.instantiate(cfg)
-
 
 
 class Workspace:
@@ -109,11 +98,10 @@ class Workspace:
                                 cfg.num_seed_frames // cfg.action_repeat,
                                 cfg.load_only_encoder,
                                 cfg.agent)
-
+        pretrained_agent = None
         # initialize from pretrained
         if cfg.snapshot_ts > 0:
             pretrained_agent = self.load_snapshot()['agent']
-            self.agent.init_from(pretrained_agent)
 
         # get meta specs
         meta_specs = self.agent.get_meta_specs()
@@ -132,7 +120,9 @@ class Workspace:
                                                 cfg.replay_buffer_size,
                                                 cfg.batch_size,
                                                 cfg.replay_buffer_num_workers,
-                                                cfg.save_buffer, cfg.nstep, cfg.discount)
+                                                cfg.save_buffer,
+                                                cfg.nstep,
+                                                cfg.discount)
         self._replay_iter = None
 
         # create video recorders
@@ -166,8 +156,16 @@ class Workspace:
                 self.logger,
                 self.dream_offline_dataset,
                 self.dream_online_dataset,
-                self.video_recorder
+                self.video_recorder,
+                init_meta=True,
+                offline_loader=self.replay_offline_loader
             ).to(self.device)
+
+        if pretrained_agent is not None:
+            if "dreamer_conf" in cfg:
+                self.agent.load_state_dict(pretrained_agent, strict=False) # missing explorer policy weights are OK
+            else:
+                self.agent.init_from(pretrained_agent)
 
     @property
     def global_step(self):
@@ -227,7 +225,6 @@ class Workspace:
             log('episode_length', step * self.cfg.action_repeat / episode)
             log('episode', self.global_episode)
             log('step', self.global_step)
-
 
     def train(self):
         # predicates
@@ -294,9 +291,7 @@ class Workspace:
 
             # sample action
             with torch.no_grad(), utils.eval_mode(self.agent):
-    # def act(self, obs, reset, state=None, reward=None, eval_mode=False):
                 action, meta = self.act_warpper(time_step, meta, eval_mode=True)
-                    
 
             # try to update the agent
             if not seed_until_step(self.global_step):

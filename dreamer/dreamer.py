@@ -37,7 +37,8 @@ class Dreamer(nn.Module):
                  offline_data,
                  online_data,
                  video_recorder,
-                 init_meta=False):
+                 init_meta=False,
+                 offline_loader=None):
         super(Dreamer, self).__init__()
 
         # reset config
@@ -60,8 +61,11 @@ class Dreamer(nn.Module):
         self._should_reset = tools.Every(config.reset_every)
         self._should_expl = tools.Until(int(config.expl_until / config.action_repeat))
         self._metrics = {}
+
         self._buffer_loader = buffer_loader
+        self._offline_buffer_loader = offline_loader
         self._step = buffer_loader.dataset._storage._num_transitions
+        self._offline_steps = offline_loader.dataset._storage._num_transitions
         self._logger = tools.Logger(logger._log_dir / "tb/", config.action_repeat * self._step, logger.use_wandb)
         self._ulogger = logger
         self._video_recorder = video_recorder
@@ -71,6 +75,7 @@ class Dreamer(nn.Module):
         self._off_dataset = offline_data
         self._on_dataset = online_data
         self._initial_meta_ready = init_meta
+        
 
         # Schedules.
         config._set_flag("allow_objects", True)
@@ -88,15 +93,19 @@ class Dreamer(nn.Module):
             # obs_space = {obs_space.name: obs_space}
             obs_space = {'image': obs_space}
         self._wm = models.WorldModel(obs_space, act_space, self._step, config)
-        self._task_behavior = models.ImagBehavior(
-            config, self._wm, config.behavior_stop_grad
-        )
-        if (
-            config.compile and os.name != "nt"
-        ):  # compilation is not supported on windows
+        self._task_behavior = None
+        if not config.no_task:
+            self._task_behavior = models.ImagBehavior(
+                config, self._wm, config.behavior_stop_grad
+            )
+
+        if config.compile and os.name != "nt":  # compilation is not supported on windows
             self._wm = torch.compile(self._wm)
-            self._task_behavior = torch.compile(self._task_behavior)
+            if not config.no_task:
+                self._task_behavior = torch.compile(self._task_behavior)
+
         reward = lambda f, s, a: self._wm.heads["reward"](f).mean()
+        self._expl_behavior = None
         self._expl_behavior = dict(
             greedy=lambda: self._task_behavior,
             random=lambda: expl.Random(config, act_space),
@@ -229,7 +238,7 @@ class Dreamer(nn.Module):
         if self._config.eval_state_mean:
             latent["stoch"] = latent["mean"]
         feat = self._wm.dynamics.get_feat(latent)
-        if not training:
+        if not training and not self._config.no_task:
             actor = self._task_behavior.actor(feat)
             action = actor.mode()
         elif self._should_expl(self._step):
@@ -262,7 +271,19 @@ class Dreamer(nn.Module):
         raise NotImplementedError(self._config.action_noise)
 
     def _select_datasource(self, online_data, offline_data, metrics):
-        return offline_data
+        offline_samples = self._offline_steps
+        online_samples = self._buffer_loader.dataset._storage._num_transitions
+        # buffers continues to grow
+        # total = offline_samples + online_samples
+        # dists = [offline_samples / total, online_samples / total]
+        # buffers stay max size
+        total = offline_samples
+        dists = [(offline_samples - online_samples) / total, online_samples / total]
+        use_offline = np.random.choice([True, False], p=dists)
+        if use_offline:
+            return offline_data
+        else :
+            return online_data
 
     def _train(self, online_data, offline_data, offline):
         if offline:
