@@ -17,7 +17,7 @@ dreamer:
   precision: 32
   debug: False
   expl_gifs: False
-  video_pred_log: False
+  video_pred_log: True
 
   # Environment
   task: 'dmc_walker_walk'
@@ -27,7 +27,7 @@ dreamer:
   num_actions: 6
   time_limit: 1000
   grayscale: False
-  prefill: 5000
+  prefill: 2500
   eval_noise: 0.0
   reward_EMA: True
 
@@ -112,9 +112,9 @@ dreamer:
   future_entropy: False
 
   # Exploration
-  expl_behavior: 'greedy'
-  no_task: False
-  expl_until: 0
+  expl_behavior: 'plan2explore'
+  no_task: True
+  expl_until: 2000000
   expl_extr_scale: 0.0
   expl_intr_scale: 1.0
   disag_target: 'stoch'
@@ -139,7 +139,7 @@ dmc_vision:
   action_repeat: 2
   envs: 4
   train_ratio: 512
-  video_pred_log: false
+  video_pred_log: true
   encoder: {mlp_keys: '$^', cnn_keys: 'image'}
   decoder: {mlp_keys: '$^', cnn_keys: 'image'}
 

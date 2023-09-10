@@ -102,7 +102,7 @@ class Every:
         self._action_repeat = action_repeat
 
     def __call__(self, step):
-        if self._every is None:
+        if self._every is None or self._every == 0:
             return False
         every = self._every // self._action_repeat
         if step % every == 0:

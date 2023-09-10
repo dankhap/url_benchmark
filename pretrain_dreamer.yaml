@@ -1,7 +1,7 @@
 defaults:
   - agent: ddpg
   - obs_type_params: pixels
-  - dreamer_conf: configs
+  - dreamer_conf: explorer
   - override hydra/launcher: submitit_local
 
 # mode
@@ -9,18 +9,18 @@ reward_free: true
 obs_type: ${obs_type_params.obs_type} # [states, pixels]
 # task settings
 domain: walker # primal task will be infered in runtime
-frame_stack: 3 # only works if obs_type=pixels
+frame_stack: 1 # only works if obs_type=pixels
 action_repeat: ${obs_type_params.action_repeat} # set to 2 for pixels
 discount: 0.99
 # train settings
 num_train_frames: 2000010
-num_seed_frames: 8000
+num_seed_frames: 3000
 # eval
-eval_every_frames: 10000
+eval_every_frames: 0
 num_eval_episodes: 10
 # snapshot
-snapshots: [100000, 500000, 1000000, 2000000]
-snapshot_dir: /code/url_benchmark/models/${obs_type}/${domain}/${agent.name}/${seed}
+snapshots: [4000, 8000, 100000, 500000, 1000000, 2000000]
+snapshot_dir: ./models/${obs_type}/${domain}/${agent.name}/${seed}
 # replay buffer
 replay_buffer_size: 1000000
 replay_buffer_num_workers: 8
@@ -39,19 +39,21 @@ experiment: exp
 group_name: test
 save_buffer: true
 buffer_dir: ""
-# buffer_dir: "/code/url_benchmark/icm_walker_pixel_buffer2"
-#buffer_dir: "/code/url_benchmark/icm_walker_pixel_buffer"
-#buffer_dir: "/code/url_benchmark/icm_quad_pixel_buffer"
-#buffer_dir: "/code/url_benchmark/icm_quad_pixel_buffer2"
-#buffer_dir: "/code/url_benchmark/icm_quad_pixel_buffer2"
-#buffer_dir: "/code/url_benchmark/icm_quad_pixel_buffer3"
-#buffer_dir: "/code/url_benchmark/rnd_walker_pixel_buffer"
-#buffer_dir: "/code/url_benchmark/rnd_walker_pixel_buffer2"
-#buffer_dir: "/code/url_benchmark/rnd_quad_pixel_buffer"
+dreamer_conf.reward_finetune_steps: 0
+
+# buffer_dir: "./icm_walker_pixel_buffer2"
+#buffer_dir: "./icm_walker_pixel_buffer"
+#buffer_dir: "./icm_quad_pixel_buffer"
+#buffer_dir: "./icm_quad_pixel_buffer2"
+#buffer_dir: "./icm_quad_pixel_buffer2"
+#buffer_dir: "./icm_quad_pixel_buffer3"
+#buffer_dir: "./rnd_walker_pixel_buffer"
+#buffer_dir: "./rnd_walker_pixel_buffer2"
+#buffer_dir: "./rnd_quad_pixel_buffer"
 
 hydra:
   run:
-    dir: /code/url_benchmark/exp_local/${now:%Y.%m.%d}/${now:%H%M%S}_${agent.name}
+    dir: ./exp_local/${now:%Y.%m.%d}/${now:%H%M%S}_${agent.name}
   sweep:
     dir: ./exp_sweep/${now:%Y.%m.%d}/${now:%H%M}_${agent.name}_${experiment}
     subdir: ${hydra.job.num}

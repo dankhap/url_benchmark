@@ -28,7 +28,17 @@ to_np = lambda x: x.detach().cpu().numpy()
 
 
 class Dreamer(nn.Module):
-    def __init__(self, obs_space, act_space, config, buffer_loader,  logger, offline_data, online_data, video_recorder):
+    def __init__(self,
+                 obs_space,
+                 act_space,
+                 config,
+                 buffer_loader,
+                 logger,
+                 offline_data,
+                 online_data,
+                 video_recorder,
+                 init_meta=False,
+                 offline_loader=None):
         super(Dreamer, self).__init__()
 
         # reset config
@@ -45,13 +55,17 @@ class Dreamer(nn.Module):
         self._should_log_policy = tools.Every(1)
         self._should_log_wm = tools.Every(config.log_pretrain_every)
         batch_steps = config.batch_size * config.batch_length
+        # TODO:  Edit to run 1/4 of the times then the original dreamer as it realtes to number of parallel runs
         self._should_train = tools.Every(batch_steps / config.train_ratio)
         self._should_pretrain = tools.Once()
         self._should_reset = tools.Every(config.reset_every)
         self._should_expl = tools.Until(int(config.expl_until / config.action_repeat))
         self._metrics = {}
+
         self._buffer_loader = buffer_loader
+        self._offline_buffer_loader = offline_loader
         self._step = buffer_loader.dataset._storage._num_transitions
+        self._offline_steps = offline_loader.dataset._storage._num_transitions
         self._logger = tools.Logger(logger._log_dir / "tb/", config.action_repeat * self._step, logger.use_wandb)
         self._ulogger = logger
         self._video_recorder = video_recorder
@@ -60,7 +74,8 @@ class Dreamer(nn.Module):
         self._update_count = 0
         self._off_dataset = offline_data
         self._on_dataset = online_data
-        self._initial_meta_ready = False
+        self._initial_meta_ready = init_meta
+        
 
         # Schedules.
         config._set_flag("allow_objects", True)
@@ -78,15 +93,19 @@ class Dreamer(nn.Module):
             # obs_space = {obs_space.name: obs_space}
             obs_space = {'image': obs_space}
         self._wm = models.WorldModel(obs_space, act_space, self._step, config)
-        self._task_behavior = models.ImagBehavior(
-            config, self._wm, config.behavior_stop_grad
-        )
-        if (
-            config.compile and os.name != "nt"
-        ):  # compilation is not supported on windows
+        self._task_behavior = None
+        if not config.no_task:
+            self._task_behavior = models.ImagBehavior(
+                config, self._wm, config.behavior_stop_grad
+            )
+
+        if config.compile and os.name != "nt":  # compilation is not supported on windows
             self._wm = torch.compile(self._wm)
-            self._task_behavior = torch.compile(self._task_behavior)
+            if not config.no_task:
+                self._task_behavior = torch.compile(self._task_behavior)
+
         reward = lambda f, s, a: self._wm.heads["reward"](f).mean()
+        self._expl_behavior = None
         self._expl_behavior = dict(
             greedy=lambda: self._task_behavior,
             random=lambda: expl.Random(config, act_space),
@@ -154,13 +173,14 @@ class Dreamer(nn.Module):
             if self._should_pretrain()
             else self._should_train(global_step)
         )
+        steps = self._config.reward_finetune_steps if self._config.reward_finetune_steps > 0 else steps
         on_iter = iter(self._on_dataset)
         off_iter = iter(self._off_dataset)
         for _ in range(steps):
             self._train(next(on_iter), next(off_iter), offline=False)
             self._update_count += 1
             self._metrics["update_count"] = self._update_count
-        if self._should_log_policy(global_step):
+        if steps > 0 and self._should_log_policy(global_step):
             self.log_metrics(next(on_iter), global_step)
         return {}
 
@@ -218,7 +238,7 @@ class Dreamer(nn.Module):
         if self._config.eval_state_mean:
             latent["stoch"] = latent["mean"]
         feat = self._wm.dynamics.get_feat(latent)
-        if not training:
+        if not training and not self._config.no_task:
             actor = self._task_behavior.actor(feat)
             action = actor.mode()
         elif self._should_expl(self._step):
@@ -251,7 +271,19 @@ class Dreamer(nn.Module):
         raise NotImplementedError(self._config.action_noise)
 
     def _select_datasource(self, online_data, offline_data, metrics):
-        return offline_data
+        offline_samples = self._offline_steps
+        online_samples = self._buffer_loader.dataset._storage._num_transitions
+        # buffers continues to grow
+        # total = offline_samples + online_samples
+        # dists = [offline_samples / total, online_samples / total]
+        # buffers stay max size
+        total = offline_samples
+        dists = [(offline_samples - online_samples) / total, online_samples / total]
+        use_offline = np.random.choice([True, False], p=dists)
+        if use_offline:
+            return offline_data
+        else :
+            return online_data
 
     def _train(self, online_data, offline_data, offline):
         if offline:
@@ -268,9 +300,10 @@ class Dreamer(nn.Module):
         if not offline:
             data_to_policy = self._select_datasource(online_data, offline_data, mets)
             start, context = self._wm.encode_online(data_to_policy)
-            metrics.update(self._task_behavior._train(start, reward)[-1])
+            if not self._config.no_task:
+                metrics.update(self._task_behavior._train(start, reward)[-1])
             if self._config.expl_behavior != "greedy":
-                mets = self._expl_behavior.train(start, context, data)[-1]
+                mets = self._expl_behavior._train(start, context, data_to_policy)[-1]
                 metrics.update({"expl_" + key: value for key, value in mets.items()})
         for name, value in metrics.items():
             if not name in self._metrics.keys():

@@ -8,11 +8,9 @@ import numpy as np
 import torch
 from pathlib import Path
 from time import sleep
-import shutil
+import traceback
 import warnings
 
-# os.environ["WANDB__SERVICE_WAIT"] = "300";
-os.environ["WANDB_MODE"] = "offline"
 os.environ['MKL_SERVICE_FORCE_INTEL'] = '1'
 os.environ['MUJOCO_GL'] = 'egl'
 
@@ -32,34 +30,31 @@ from video import TrainVideoRecorder, VideoRecorder
 from dreamer.dreamer import Dreamer
 from dreamer.dreamer import make_dataset_urlb
 
+from dmc_benchmark import PRIMAL_TASKS
 
 torch.backends.cudnn.benchmark = True
 
-def make_agent(obs_type, obs_spec, action_spec, num_expl_steps, load_only_encoder, cfg):
+def make_agent(obs_type, obs_spec, action_spec, num_expl_steps, cfg):
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
     cfg.action_shape = action_spec.shape
     cfg.num_expl_steps = num_expl_steps
-    cfg.load_only_encoder = load_only_encoder
     return hydra.utils.instantiate(cfg)
 
 
 class Workspace:
     def __init__(self, cfg):
         self.work_dir = Path.cwd()
-        # self.buffer_dir = self.work_dir
-        if cfg.buffer_dir != "":
-            print(f'buffer_dir: {cfg.buffer_dir}')
-            # shutil.copytree(cfg.buffer_dir, str(self.work_dir))
-            # print("finished copying buffer")
-            print("WARRNING: using buffer dir as work dir, data can get changed")
-            self.buffer_dir = Path(cfg.buffer_dir)
-
-
         print(f'workspace: {self.work_dir}')
-        print(f'slurm job id: {os.environ.get("SLURM_JOB_ID", "none")}')
-        # TODO: pretty pring the configuration
-        print(cfg)
+        if "SLURM_JOB_ID" in os.environ:
+            print(f'slurm job id: {os.environ["SLURM_JOB_ID"]}')
+
+        self.buffer_dir = self.work_dir
+        if cfg.buffer_dir != "":
+            self.buffer_dir = Path(cfg.buffer_dir)
+            # create the directory if it doesn't exist
+            self.buffer_dir.mkdir(parents=True, exist_ok=True)
+
 
         self.cfg = cfg
         utils.set_seed_everywhere(cfg.seed)
@@ -70,25 +65,26 @@ class Workspace:
             full_config = OmegaConf.to_container(cfg, resolve=True)
             exp_name = '_'.join([cfg.experiment,
                 cfg.agent.name,
-                cfg.task,
+                cfg.domain,
                 cfg.obs_type,
                 str(cfg.seed),
-                "finetune"])
+                "pretrain"])
             wandb.init(project="dreamerv3_urlb",
                 entity="urlb-gqn-test",
                 group=cfg.group_name,
                 name=exp_name,
-                # sync_tensorboard=True,
                 config=full_config)
+                # sync_tensorboard=True,
+                # config=full_config)
 
         self.logger = Logger(self.work_dir,
                              use_tb=cfg.use_tb,
                              use_wandb=cfg.use_wandb)
         # create envs
-
-        self.train_env = dmc.make(cfg.task, cfg.obs_type, cfg.frame_stack,
+        task = PRIMAL_TASKS[self.cfg.domain]
+        self.train_env = dmc.make(task, cfg.obs_type, cfg.frame_stack,
                                   cfg.action_repeat, cfg.seed, resize=(64, 64))
-        self.eval_env = dmc.make(cfg.task, cfg.obs_type, cfg.frame_stack,
+        self.eval_env = dmc.make(task, cfg.obs_type, cfg.frame_stack,
                                  cfg.action_repeat, cfg.seed, resize=(64, 64))
 
         # create agent
@@ -96,12 +92,7 @@ class Workspace:
                                 self.train_env.observation_spec(),
                                 self.train_env.action_spec(),
                                 cfg.num_seed_frames // cfg.action_repeat,
-                                cfg.load_only_encoder,
                                 cfg.agent)
-        pretrained_agent = None
-        # initialize from pretrained
-        if cfg.snapshot_ts > 0:
-            pretrained_agent = self.load_snapshot()['agent']
 
         # get meta specs
         meta_specs = self.agent.get_meta_specs()
@@ -111,10 +102,10 @@ class Workspace:
                       specs.Array((1,), np.float32, 'reward'),
                       specs.Array((1,), np.float32, 'discount'))
 
-
         # create data storage
         self.replay_storage = ReplayBufferStorage(data_specs, meta_specs,
-                                                  self.work_dir / 'buffer')
+                                                  self.buffer_dir / 'buffer')
+
         # create replay buffer
         self.replay_loader = make_orig_replay_loader(self.replay_storage,
                                                 cfg.replay_buffer_size,
@@ -122,18 +113,24 @@ class Workspace:
                                                 cfg.replay_buffer_num_workers,
                                                 cfg.save_buffer,
                                                 cfg.nstep,
-                                                cfg.discount)
+                                                cfg.discount,
+                                                cfg.seed)
         self._replay_iter = None
 
         # create video recorders
         self.video_recorder = VideoRecorder(
-            self.work_dir if cfg.save_video else None)
+            self.work_dir if cfg.save_video else None,
+            camera_id=0 if 'quadruped' not in self.cfg.domain else 2,
+            use_wandb=self.cfg.use_wandb)
         self.train_video_recorder = TrainVideoRecorder(
-            self.work_dir if cfg.save_train_video else None)
+            self.work_dir if cfg.save_train_video else None,
+            camera_id=0 if 'quadruped' not in self.cfg.domain else 2,
+            use_wandb=self.cfg.use_wandb)
 
         self.timer = utils.Timer()
         self._global_step = 0
         self._global_episode = 0
+        print("environment initialization complete")
 
         if "dreamer_conf" in cfg:
             assert cfg.device == cfg.dreamer_conf.dreamer.device
@@ -157,15 +154,8 @@ class Workspace:
                 self.dream_offline_dataset,
                 self.dream_online_dataset,
                 self.video_recorder,
-                init_meta=True,
-                offline_loader=self.replay_offline_loader
+                init_meta=True # true if we skip init_meta pretraining based on external buffer
             ).to(self.device)
-
-        if pretrained_agent is not None:
-            if "dreamer_conf" in cfg:
-                self.agent.load_state_dict(pretrained_agent, strict=False) # missing explorer policy weights are OK
-            else:
-                self.agent.init_from(pretrained_agent)
 
     @property
     def global_step(self):
@@ -240,10 +230,8 @@ class Workspace:
         meta = self.agent.init_meta()
         self.replay_storage.add(time_step, meta)
         self.train_video_recorder.init(time_step.observation)
+        print("video recorder initialized")
         metrics = None
-        started_seed = False
-        started_online_train = False
-
         while train_until_step(self.global_step):
             if time_step.last():
                 self._global_episode += 1
@@ -268,9 +256,13 @@ class Workspace:
                 meta = self.agent.init_meta()
                 self.replay_storage.add(time_step, meta)
                 self.train_video_recorder.init(time_step.observation)
-
+                # try to save snapshot
                 episode_step = 0
                 episode_reward = 0
+
+            # Allow taking snapshots mid-episode
+            if self.global_frame in self.cfg.snapshots:
+                self.save_snapshot()
 
             # try to evaluate
             if eval_every_step(self.global_step):
@@ -279,37 +271,14 @@ class Workspace:
                 self.eval()
 
             meta = self.agent.update_meta(meta, self.global_step, time_step)
-
-            if hasattr(self.agent, "regress_meta"):
-                repeat = self.cfg.action_repeat
-                every = self.agent.update_task_every_step // repeat
-                init_step = self.agent.num_init_steps
-                if self.global_step > (
-                        init_step // repeat) and self.global_step % every == 0:
-                    meta = self.agent.regress_meta(self.replay_iter,
-                                                   self.global_step)
-
             # sample action
             with torch.no_grad(), utils.eval_mode(self.agent):
                 action, meta = self.act_warpper(time_step, meta, eval_mode=True)
 
             # try to update the agent
             if not seed_until_step(self.global_step):
-                batches_per_step = 1
-                if self.cfg.batch_sched == 'linear':
-                    batches_per_step = self.get_bathch_count_linear(self.global_step)
-                elif self.cfg.batch_sched == 'fast':
-                    batches_per_step = self.get_num_of_batches_per_update(self.global_step)
-                if not started_online_train:
-                    started_online_train = True
-                    print('Phase III: train online data for', batches_per_step, 'batches')
-                for _ in range(int(batches_per_step)):
-                    metrics = self.agent.update(self.replay_iter, self.global_step)
-                    self.logger.log_metrics(metrics, self.global_frame, ty='train')
-            else:
-                if not started_seed:
-                    started_seed = True
-                    print('Phase II: started online data seed')
+                metrics = self.agent.update(self.replay_iter, self.global_step)
+                self.logger.log_metrics(metrics, self.global_frame, ty='train')
 
             # take env step
             time_step = self.train_env.step(action)
@@ -319,13 +288,17 @@ class Workspace:
             episode_step += 1
             self._global_step += 1
 
-    def get_bathch_count_linear(self, env_step:int):
-        iter_num = -(env_step/500000) + 2.5
-        return np.rint(2*iter_num)
-
-    def get_num_of_batches_per_update(self, env_step: int):
-        iter_num = 548076/(env_step + 96152)
-        return np.rint(2*iter_num)
+    def save_snapshot(self):
+        snapshot_dir = self.work_dir / Path(self.cfg.snapshot_dir)
+        snapshot_dir.mkdir(exist_ok=True, parents=True)
+        snapshot = snapshot_dir / f'snapshot_{self.global_frame}.pt'
+        keys_to_save = ['agent', '_global_step', '_global_episode']
+        payload = {k: self.__dict__[k] for k in keys_to_save}
+        if type(payload['agent']) == Dreamer:
+            payload['agent'] = payload['agent'].state_dict()
+            payload['dreamer'] = 1
+        with snapshot.open('wb') as f:
+            torch.save(payload, f)
 
     def load_snapshot(self):
         snapshot_base_dir = Path(self.cfg.snapshot_base_dir)
@@ -342,6 +315,8 @@ class Workspace:
                 return None
             with snapshot.open('rb') as f:
                 payload = torch.load(f)
+            if 'dreamer' in payload:
+                payload['agent'] = Dreamer.from_state_dict(payload['agent'])
             return payload
 
         # try to load current seed
@@ -363,9 +338,10 @@ class Workspace:
         return None
 
 
-@hydra.main(config_path='.', config_name='finetune')
+@hydra.main(config_path='.', config_name='pretrain_dreamer')
 def main(cfg):
-    from finetune import Workspace as W
+    from pretrain_dreamer import Workspace as W
+    os.environ["MUJOCO_GL"] = "egl"
     root_dir = Path.cwd()
     workspace = W(cfg)
     snapshot = root_dir / 'snapshot.pt'
@@ -377,3 +353,4 @@ def main(cfg):
 
 if __name__ == '__main__':
     main()
+
