@@ -339,7 +339,7 @@ class Workspace:
         return None
 
 
-@hydra.main(config_path='.', config_name='pretrain_dreamer')
+@hydra.main(config_path='/code/url_benchmark', config_name='pretrain_dreamer')
 def main(cfg):
     from pretrain_dreamer import Workspace as W
     os.environ["MUJOCO_GL"] = "egl"
