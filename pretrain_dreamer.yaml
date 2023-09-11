@@ -19,7 +19,7 @@ num_seed_frames: 3000
 eval_every_frames: 0
 num_eval_episodes: 10
 # snapshot
-snapshots: [3030, 100000, 500000, 1000000, 2000000, 3000000]
+snapshots: [10000, 100000, 500000, 1000000, 2000000, 3000000]
 snapshot_dir: /code/url_benchmark/models/${obs_type}/${domain}/dreamer/${seed}
 # replay buffer
 replay_buffer_size: 1000000

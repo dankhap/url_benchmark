@@ -4,7 +4,7 @@
 # 	frame_stack=1 \
 # 	eval_every_frames=8000 \
 # 	use_wandb=true \
-# 	pretrained_agent=icm \
+#   pretrained_agent=dreamer \
 # 	task=walker_walk \
 # 	snapshot_ts=0 \
 # 	obs_type=pixels \

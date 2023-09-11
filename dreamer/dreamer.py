@@ -302,7 +302,7 @@ class Dreamer(nn.Module):
         else :
             wm_data = online_data
         metrics = {}
-        post, context, mets = self._wm._train(wm_data, no_task=self._config.no_task)
+        post, context, mets = self._wm._train(wm_data, offline=offline)
         metrics.update(mets)
         start = post
         reward = lambda f, s, a: self._wm.heads["reward"](
