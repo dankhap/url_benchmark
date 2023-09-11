@@ -1,3 +1,4 @@
+from typing import Mapping, Any 
 import argparse
 from tqdm import tqdm
 import functools
@@ -112,6 +113,16 @@ class Dreamer(nn.Module):
             plan2explore=lambda: expl.Plan2Explore(config, self._wm, reward),
         )[config.expl_behavior]().to(self._config.device)
 
+
+    def load_state_dict(self, state_dict: Mapping[str, Any],
+                        strict: bool = True):
+        if not self._config.no_task:
+            # Remove reward head from state dict
+            reward_layers = [key for key in state_dict.keys() if "reward" in key]
+            for l in reward_layers:
+                state_dict.pop(l, None)
+
+        return super().load_state_dict(state_dict, strict)
 
     def init_meta(self):
         if self._initial_meta_ready:
@@ -241,7 +252,7 @@ class Dreamer(nn.Module):
         if not training and not self._config.no_task:
             actor = self._task_behavior.actor(feat)
             action = actor.mode()
-        elif self._should_expl(self._step):
+        elif self._should_expl(self._step) or self._config.no_task:
             actor = self._expl_behavior.actor(feat)
             action = actor.sample()
         else:
@@ -291,7 +302,7 @@ class Dreamer(nn.Module):
         else :
             wm_data = online_data
         metrics = {}
-        post, context, mets = self._wm._train(wm_data, offline)
+        post, context, mets = self._wm._train(wm_data, no_task=self._config.no_task)
         metrics.update(mets)
         start = post
         reward = lambda f, s, a: self._wm.heads["reward"](
