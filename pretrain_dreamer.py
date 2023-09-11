@@ -104,7 +104,7 @@ class Workspace:
 
         # create data storage
         self.replay_storage = ReplayBufferStorage(data_specs, meta_specs,
-                                                  self.buffer_dir / 'buffer')
+                                                  self.work_dir / 'buffer')
 
         # create replay buffer
         self.replay_loader = make_orig_replay_loader(self.replay_storage,
@@ -154,7 +154,8 @@ class Workspace:
                 self.dream_offline_dataset,
                 self.dream_online_dataset,
                 self.video_recorder,
-                init_meta=True # true if we skip init_meta pretraining based on external buffer
+                init_meta=True, # true if we skip init_meta pretraining based on external buffer
+                offline_loader=self.replay_offline_loader
             ).to(self.device)
 
     @property

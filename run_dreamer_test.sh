@@ -27,10 +27,8 @@ python pretrain_dreamer.py \
 	domain=walker \
 	obs_type=pixels \
 	seed=8 \
-	num_seed_frames=4000 \
+	num_seed_frames=2500 \
 	replay_buffer_num_workers=0 \
-	buffer_dir=/code/url_benchmark/icm_walker_pixels_buffer_bak/small/ \
-	load_only_encoder=true \
 	dreamer_conf.dreamer.pretrain=10 \
 	dreamer_conf.dreamer.reward_finetune_steps=0 \
 	dreamer_conf.dreamer.log_pretrain_every=0 \

@@ -5,7 +5,7 @@ dreamer:
   offline_traindir: ''
   offline_evaldir: ''
   seed: 0
-  steps: 1e6
+  steps: 3e6
   eval_every: 1e4
   eval_episode_num: 10
   log_every: 1e4
@@ -27,7 +27,7 @@ dreamer:
   num_actions: 6
   time_limit: 1000
   grayscale: False
-  prefill: 2500
+  prefill: 3000
   eval_noise: 0.0
   reward_EMA: True
 

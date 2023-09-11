@@ -273,13 +273,13 @@ class Dreamer(nn.Module):
     def _select_datasource(self, online_data, offline_data, metrics):
         offline_samples = self._offline_steps
         online_samples = self._buffer_loader.dataset._storage._num_transitions
-        # buffers continues to grow
-        # total = offline_samples + online_samples
-        # dists = [offline_samples / total, online_samples / total]
-        # buffers stay max size
-        total = offline_samples
-        dists = [(offline_samples - online_samples) / total, online_samples / total]
+
+        # Consider varying sized of offline and on line datasets, with priority to online
+        total = max(1000000, online_samples + offline_samples)         
+        online_weight = total - offline_samples
+        dists = [offline_samples / total, online_weight / total]
         use_offline = np.random.choice([True, False], p=dists)
+
         if use_offline:
             return offline_data
         else :
