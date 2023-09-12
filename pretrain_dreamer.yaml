@@ -39,7 +39,7 @@ experiment: exp
 group_name: test
 save_buffer: true
 buffer_dir: ""
-dreamer_conf.reward_finetune_steps: 0
+dreamer_conf.dreamer.reward_finetune_steps: 0
 load_only_encoder: false
 
 # buffer_dir: "./icm_walker_pixel_buffer2"
