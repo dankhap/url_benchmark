@@ -30,7 +30,7 @@ batch_size: ${obs_type_params.batch_size}
 nstep: ${agent.nstep}
 update_encoder: false # can be either true or false depending if we want to fine-tune encoder
 # misc
-seed: 1
+seed: 8
 device: cuda
 save_video: false
 save_train_video: false
@@ -64,7 +64,7 @@ batch_sched: normal
 save_buffer: true
 
 
-pretrained_agent: icm
+pretrained_agent: dreamer
 
 hydra:
   run:

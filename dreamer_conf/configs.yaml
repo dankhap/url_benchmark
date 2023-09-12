@@ -17,7 +17,7 @@ dreamer:
   precision: 32
   debug: False
   expl_gifs: False
-  video_pred_log: True
+  video_pred_log: False
 
   # Environment
   task: 'dmc_walker_walk'
@@ -139,7 +139,7 @@ dmc_vision:
   action_repeat: 2
   envs: 4
   train_ratio: 512
-  video_pred_log: true
+  video_pred_log: false
   encoder: {mlp_keys: '$^', cnn_keys: 'image'}
   decoder: {mlp_keys: '$^', cnn_keys: 'image'}
 

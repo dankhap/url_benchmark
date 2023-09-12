@@ -13,14 +13,14 @@ frame_stack: 1 # only works if obs_type=pixels
 action_repeat: ${obs_type_params.action_repeat} # set to 2 for pixels
 discount: 0.99
 # train settings
-num_train_frames: 2000010
+num_train_frames: 3000000
 num_seed_frames: 3000
 # eval
 eval_every_frames: 0
 num_eval_episodes: 10
 # snapshot
-snapshots: [2020, 8000, 100000, 500000, 1000000, 2000000]
-snapshot_dir: ./models/${obs_type}/${domain}/${agent.name}/${seed}
+snapshots: [10000, 100000, 500000, 1000000, 2000000, 3000000]
+snapshot_dir: /code/url_benchmark/models/${obs_type}/${domain}/dreamer/${seed}
 # replay buffer
 replay_buffer_size: 1000000
 replay_buffer_num_workers: 8
@@ -40,6 +40,7 @@ group_name: test
 save_buffer: true
 buffer_dir: ""
 dreamer_conf.reward_finetune_steps: 0
+load_only_encoder: false
 
 # buffer_dir: "./icm_walker_pixel_buffer2"
 #buffer_dir: "./icm_walker_pixel_buffer"
@@ -53,9 +54,9 @@ dreamer_conf.reward_finetune_steps: 0
 
 hydra:
   run:
-    dir: ./exp_local/${now:%Y.%m.%d}/${now:%H%M%S}_${agent.name}
+    dir: /code/url_benchmark/exp_local/${now:%Y.%m.%d}/${now:%H%M%S}_${agent.name}
   sweep:
-    dir: ./exp_sweep/${now:%Y.%m.%d}/${now:%H%M}_${agent.name}_${experiment}
+    dir: /code/url_benchmark/exp_sweep/${now:%Y.%m.%d}/${now:%H%M}_${agent.name}_${experiment}
     subdir: ${hydra.job.num}
   launcher:
     timeout_min: 4300
@@ -64,4 +65,4 @@ hydra:
     tasks_per_node: 1
     mem_gb: 160
     nodes: 1
-    submitit_folder: ./exp_sweep/${now:%Y.%m.%d}/${now:%H%M}_${agent.name}_${experiment}/.slurm
+    submitit_folder: /code/url_benchmark/exp_sweep/${now:%Y.%m.%d}/${now:%H%M}_${agent.name}_${experiment}/.slurm
