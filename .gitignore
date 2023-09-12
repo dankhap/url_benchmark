@@ -86,3 +86,6 @@ icm_walker_pixels_buffer_bak/buffer
 buffers
 icm_walker_pixels_buffer_bak/small/buffer
 rnd_walker_pixels_buffer16_2m/buffer
+tmux-client-3541388.log
+finetune_local.yaml
+pretrain_dreamer_local.yaml

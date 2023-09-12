@@ -19,7 +19,7 @@ num_seed_frames: 3000
 eval_every_frames: 0
 num_eval_episodes: 10
 # snapshot
-snapshots: [4000, 8000, 100000, 500000, 1000000, 2000000]
+snapshots: [2020, 8000, 100000, 500000, 1000000, 2000000]
 snapshot_dir: ./models/${obs_type}/${domain}/${agent.name}/${seed}
 # replay buffer
 replay_buffer_size: 1000000
