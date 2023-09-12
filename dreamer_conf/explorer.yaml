@@ -114,7 +114,7 @@ dreamer:
   # Exploration
   expl_behavior: 'plan2explore'
   no_task: True
-  expl_until: 2000000
+  expl_until: ${num_train_frames}
   expl_extr_scale: 0.0
   expl_intr_scale: 1.0
   disag_target: 'stoch'
