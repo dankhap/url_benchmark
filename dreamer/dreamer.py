@@ -53,7 +53,7 @@ class Dreamer(nn.Module):
         self._config = config
         # self._logger = logger
         self._should_log = tools.Every(config.log_every)
-        self._should_log_policy = tools.Every(1)
+        self._should_log_policy = tools.Every(config.log_every)
         self._should_log_wm = tools.Every(config.log_pretrain_every)
         batch_steps = config.batch_size * config.batch_length
         # TODO:  Edit to run 1/4 of the times then the original dreamer as it realtes to number of parallel runs
