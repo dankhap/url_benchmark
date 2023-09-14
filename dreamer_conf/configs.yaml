@@ -74,7 +74,7 @@ dreamer:
   batch_size: 16
   batch_length: 64
   train_ratio: 512
-  pretrain: 20
+  pretrain: 200
   reward_finetune_steps: 0
   model_lr: 1e-4
   opt_eps: 1e-8
