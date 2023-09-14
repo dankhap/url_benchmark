@@ -22,7 +22,7 @@ num_eval_episodes: 10
 snapshot_ts: 2000000
 snapshots: [10]
 # default snapshot_base_dir: ./pretrained_models
-snapshot_base_dir: ./models/
+snapshot_base_dir: /code/url_benchmark/models/
 # replay buffer
 replay_buffer_size: 1000000
 replay_buffer_num_workers: 4
