@@ -1,4 +1,5 @@
 import warnings
+import json
 warnings.filterwarnings('ignore', category=DeprecationWarning)
 import os
 import wandb
@@ -8,8 +9,6 @@ import numpy as np
 import torch
 from pathlib import Path
 from time import sleep
-import shutil
-import warnings
 
 # os.environ["WANDB__SERVICE_WAIT"] = "300";
 os.environ["WANDB_MODE"] = "online"
@@ -58,8 +57,8 @@ class Workspace:
 
         print(f'workspace: {self.work_dir}')
         print(f'slurm job id: {os.environ.get("SLURM_JOB_ID", "none")}')
-        # TODO: pretty pring the configuration
-        print(cfg)
+        full_config = OmegaConf.to_container(cfg, resolve=True)
+        print(json.dumps(full_config, indent=2))
 
         self.cfg = cfg
         utils.set_seed_everywhere(cfg.seed)
@@ -67,7 +66,6 @@ class Workspace:
 
         # create logger
         if cfg.use_wandb:
-            full_config = OmegaConf.to_container(cfg, resolve=True)
             exp_name = '_'.join([cfg.experiment,
                 cfg.agent.name,
                 cfg.task,
