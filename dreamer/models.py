@@ -245,6 +245,9 @@ class WorldModel(nn.Module):
         reward_prior = self.heads["reward"](self.dynamics.get_feat(prior)).mode()
         # observed image is given until 5 steps
         model = torch.cat([recon[:, :5], openl[:,:,:3]], 1)
+        model_rew = torch.cat([reward_post, reward_prior], 1)
+        truth_rew = data["reward"][:6].squeeze(-1)
+
         truth = data["image"][:6,:,:3] + 0.5
         model = model + 0.5
         error = (model - truth + 1.0) / 2.0
