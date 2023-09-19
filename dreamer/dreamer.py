@@ -211,7 +211,8 @@ class Dreamer(nn.Module):
         if self._config.video_pred_log:
             openl, rew_plot = self._wm.video_pred(video_data)
             self._logger.video("train_openl", to_np(openl))
-            self._logger.image("train_reward", rew_plot)
+            if not self._config.no_task:
+                self._logger.image("train_reward", rew_plot)
         self._logger.write(fps=True)
 
     @property
