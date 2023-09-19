@@ -1,4 +1,5 @@
 dreamer:
+  plotdir: "/home/daniel/code/url_benchmark/plots"
   logdir: null
   traindir: null
   evaldir: null

@@ -38,6 +38,7 @@ class Dreamer(nn.Module):
                  offline_data,
                  online_data,
                  video_recorder,
+                 eval_data=None,
                  init_meta=False,
                  offline_loader=None):
         super(Dreamer, self).__init__()
@@ -75,6 +76,7 @@ class Dreamer(nn.Module):
         self._update_count = 0
         self._off_dataset = offline_data
         self._on_dataset = online_data
+        self._eval_dataset = eval_data
         self._initial_meta_ready = init_meta
         
 
@@ -187,13 +189,16 @@ class Dreamer(nn.Module):
         steps = self._config.reward_finetune_steps if self._config.reward_finetune_steps > 0 else steps
         on_iter = iter(self._on_dataset)
         off_iter = iter(self._off_dataset)
+        eval_iter = iter(self._eval_dataset)
+
         for _ in range(steps):
             self._train(next(on_iter), next(off_iter), offline=False)
             self._update_count += 1
         self._metrics["update_count"] = self._update_count
         if steps > 0 and self._should_log_policy(global_step):
             print(f"updated for {steps} steps")
-            self.log_metrics(next(on_iter), global_step)
+            # latest_6_episodes = self._d
+            self.log_metrics(next(eval_iter), global_step)
         return {}
 
     def log_metrics(self, video_data, step=1, sub_prefix=""):
@@ -204,8 +209,9 @@ class Dreamer(nn.Module):
             self._logger.scalar(name, float(np.mean(values)))
             self._metrics[name] = []
         if self._config.video_pred_log:
-            openl = self._wm.video_pred(video_data)
+            openl, rew_plot = self._wm.video_pred(video_data)
             self._logger.video("train_openl", to_np(openl))
+            self._logger.image("train_reward", rew_plot)
         self._logger.write(fps=True)
 
     @property
@@ -328,9 +334,9 @@ def count_steps(folder):
     return sum(int(str(n).split("-")[-1][:-4]) - 1 for n in folder.glob("*.npz"))
 
 
-def make_dataset_urlb(episodes, config):
-    generator = tools.sample_episodes(episodes, config.batch_length)
-    dataset = tools.from_generator(generator, config.batch_size, config.batch_length)
+def make_dataset_urlb(episodes, batch_size, batch_length):
+    generator = tools.sample_episodes(episodes, batch_length)
+    dataset = tools.from_generator(generator, batch_size, batch_length)
     return dataset
 
 def make_dataset(episodes, config):
@@ -458,118 +464,3 @@ class ProcessEpisodeWrap:
         logger.write(step=logger.step)
 
 
-def main(config):
-    logdir = pathlib.Path(config.logdir).expanduser()
-    config.traindir = config.traindir or logdir / "train_eps"
-    config.evaldir = config.evaldir or logdir / "eval_eps"
-    config.steps //= config.action_repeat
-    config.eval_every //= config.action_repeat
-    config.log_every //= config.action_repeat
-    config.time_limit //= config.action_repeat
-
-    print("Logdir", logdir)
-    logdir.mkdir(parents=True, exist_ok=True)
-    config.traindir.mkdir(parents=True, exist_ok=True)
-    config.evaldir.mkdir(parents=True, exist_ok=True)
-    step = count_steps(config.traindir)
-    logger = tools.Logger(logdir, config.action_repeat * step, False)
-
-    print("Create envs.")
-    if config.offline_traindir:
-        directory = config.offline_traindir.format(**vars(config))
-    else:
-        directory = config.traindir
-    train_eps = tools.load_episodes(directory, limit=config.dataset_size)
-    if config.offline_evaldir:
-        directory = config.offline_evaldir.format(**vars(config))
-    else:
-        directory = config.evaldir
-    eval_eps = tools.load_episodes(directory, limit=1)
-    make = lambda mode: make_env(config, logger, mode, train_eps, eval_eps)
-    train_envs = [make("train") for _ in range(config.envs)]
-    eval_envs = [make("eval") for _ in range(config.envs)]
-    acts = train_envs[0].action_space
-    config.num_actions = acts.n if hasattr(acts, "n") else acts.shape[0]
-
-    if not config.offline_traindir:
-        prefill = max(0, config.prefill - count_steps(config.traindir))
-        print(f"Prefill dataset ({prefill} steps).")
-        if hasattr(acts, "discrete"):
-            random_actor = tools.OneHotDist(
-                torch.zeros(config.num_actions).repeat(config.envs, 1)
-            )
-        else:
-            random_actor = torchd.independent.Independent(
-                torchd.uniform.Uniform(
-                    torch.Tensor(acts.low).repeat(config.envs, 1),
-                    torch.Tensor(acts.high).repeat(config.envs, 1),
-                ),
-                1,
-            )
-
-        def random_agent(o, d, s, r):
-            action = random_actor.sample()
-            logprob = random_actor.log_prob(action)
-            return {"action": action, "logprob": logprob}, None
-
-        tools.simulate(random_agent, train_envs, prefill)
-        logger.step = config.action_repeat * count_steps(config.traindir)
-
-    print("Simulate agent.")
-    train_dataset = make_dataset(train_eps, config)
-    eval_dataset = make_dataset(eval_eps, config)
-    agent = Dreamer(
-        train_envs[0].observation_space,
-        train_envs[0].action_space,
-        config,
-        logger,
-        train_dataset,
-    ).to(config.device)
-    agent.requires_grad_(requires_grad=False)
-    if (logdir / "latest_model.pt").exists():
-        agent.load_state_dict(torch.load(logdir / "latest_model.pt"))
-        agent._should_pretrain._once = False
-
-    state = None
-    while agent._step < config.steps:
-        logger.write()
-        print("Start evaluation.")
-        eval_policy = functools.partial(agent, training=False)
-        tools.simulate(eval_policy, eval_envs, episodes=config.eval_episode_num)
-        if config.video_pred_log:
-            video_pred = agent._wm.video_pred(next(eval_dataset))
-            logger.video("eval_openl", to_np(video_pred))
-        print("Start training.")
-        state = tools.simulate(agent, train_envs, config.eval_every, state=state)
-        torch.save(agent.state_dict(), logdir / "latest_model.pt")
-    for env in train_envs + eval_envs:
-        try:
-            env.close()
-        except Exception:
-            pass
-
-def mainmain():
-    if __name__ == "__main__":
-        parser = argparse.ArgumentParser()
-        parser.add_argument("--configs", nargs="+")
-        args, remaining = parser.parse_known_args()
-        configs = yaml.safe_load(
-            (pathlib.Path(sys.argv[0]).parent / "configs.yaml").read_text()
-        )
-
-        def recursive_update(base, update):
-            for key, value in update.items():
-                if isinstance(value, dict) and key in base:
-                    recursive_update(base[key], value)
-                else:
-                    base[key] = value
-
-        name_list = ["defaults", *args.configs] if args.configs else ["defaults"]
-        defaults = {}
-        for name in name_list:
-            recursive_update(defaults, configs[name])
-        parser = argparse.ArgumentParser()
-        for key, value in sorted(defaults.items(), key=lambda x: x[0]):
-            arg_type = tools.args_type(value)
-            parser.add_argument(f"--{key}", type=arg_type, default=arg_type(value))
-        main(parser.parse_args(remaining))

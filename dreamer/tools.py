@@ -89,6 +89,9 @@ class Logger:
             self._writer.add_scalar("scalars/" + name, value, step)
         for name, value in self._images.items():
             self._writer.add_image(name, value, step)
+            if self._log_wandb:
+                value = value.transpose(1, 2, 0)
+                wandb.log({"ep_reward": wandb.Image(value)})
         for name, value in self._videos.items():
             name = name if isinstance(name, str) else name.decode("utf-8")
             # URLB hacks

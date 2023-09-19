@@ -1,4 +1,5 @@
 import copy
+import matplotlib.pyplot as plt
 import torch
 from torch import nn
 import numpy as np
@@ -247,12 +248,29 @@ class WorldModel(nn.Module):
         model = torch.cat([recon[:, :5], openl[:,:,:3]], 1)
         model_rew = torch.cat([reward_post, reward_prior], 1)
         truth_rew = data["reward"][:6].squeeze(-1)
+        # plot model vs truth rew
+        fig, ax = plt.subplots(1,6, figsize=(12,3))
+        fig.tight_layout(pad=0)
+        model_rew = model_rew.squeeze(-1).detach().cpu().numpy()
+        truth_rew = truth_rew.squeeze(-1).detach().cpu().numpy()
+        for i, (model_r, truth_r) in enumerate(zip(model_rew, truth_rew)):
+            ax[i].plot(model_r)
+            ax[i].plot(truth_r)
+
+        # save plot to image
+        plt.savefig(f"{self._config.plotdir}/model_vs_truth.png")
+        plt_img_data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+        # plt_img_data = plt_img_data.reshape((1,) + fig.canvas.get_width_height()[::-1] + (3,))
+        plt_img_data = plt_img_data.reshape( fig.canvas.get_width_height()[::-1] + (3,)).transpose(2, 0, 1)
+# def image(tag, tensor, rescale=1, dataformats="NCHW"):
+
+
 
         truth = data["image"][:6,:,:3] + 0.5
         model = model + 0.5
         error = (model - truth + 1.0) / 2.0
 
-        return torch.cat([truth, model, error], 3)
+        return torch.cat([truth, model, error], 3), plt_img_data
 
 
 class ImagBehavior(nn.Module):
