@@ -267,3 +267,19 @@ def make_replay_loader(storage, exploration_buffer, max_size, batch_size, num_wo
                                          pin_memory=True,
                                          worker_init_fn=_worker_init_fn)
     return loader
+
+def make_store_loader(data_specs, meta_specs, cfg, dir):
+    # create data storage
+    replay_storage = ReplayBufferStorage(data_specs, 
+                                         meta_specs,
+                                         dir)
+    # create replay buffer
+    replay_loader = make_orig_replay_loader(replay_storage,
+                                            cfg.replay_buffer_size,
+                                            cfg.batch_size,
+                                            cfg.replay_buffer_num_workers,
+                                            cfg.save_buffer,
+                                            cfg.nstep,
+                                            cfg.discount)
+    return replay_storage, replay_loader
+

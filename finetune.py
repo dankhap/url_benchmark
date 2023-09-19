@@ -25,7 +25,7 @@ from dm_env import specs
 import dmc
 import utils
 from logger import Logger
-from replay_buffer import ReplayBufferStorage, make_orig_replay_loader, make_replay_loader
+from replay_buffer import  make_store_loader
 from video import TrainVideoRecorder, VideoRecorder
 
 from dreamer.dreamer import Dreamer
@@ -109,21 +109,9 @@ class Workspace:
                       specs.Array((1,), np.float32, 'reward'),
                       specs.Array((1,), np.float32, 'discount'))
 
-
-        # create data storage
-        self.replay_storage = ReplayBufferStorage(data_specs, meta_specs,
-                                                  self.work_dir / 'buffer')
-        # create replay buffer
-        self.replay_loader = make_orig_replay_loader(self.replay_storage,
-                                                cfg.replay_buffer_size,
-                                                cfg.batch_size,
-                                                cfg.replay_buffer_num_workers,
-                                                cfg.save_buffer,
-                                                cfg.nstep,
-                                                cfg.discount)
-        self.replay_storage, self.replay_loader = self.make_store_loader(data_specs, meta_specs, 
-                                                                         cfg, 
-                                                                         self.work_dir / 'buffer')
+        self.replay_storage, self.replay_loader = make_store_loader(data_specs, meta_specs, 
+                                                                 cfg, 
+                                                                 self.work_dir / 'buffer')
         self._replay_iter = None
 
         # create video recorders
@@ -139,9 +127,9 @@ class Workspace:
         if "dreamer_conf" in cfg:
             dream_cfg = cfg.dreamer_conf.dreamer
             assert cfg.device == dream_cfg.device
-            self.replay_offline_storage, self.replay_offline_loader = self.make_store_loader(
+            self.replay_offline_storage, self.replay_offline_loader = make_store_loader(
                     data_specs, meta_specs, cfg, self.buffer_dir / 'buffer')
-            self.eval_store, self.eval_loader = self.make_store_loader(
+            self.eval_store, self.eval_loader = make_store_loader(
                     data_specs, meta_specs, cfg, self.work_dir / 'eval_buffer')
 
             self.dream_online_dataset = make_dataset_urlb(
@@ -374,20 +362,6 @@ class Workspace:
                 break
         return None
 
-    def make_store_loader(self, data_specs, meta_specs, cfg, dir):
-        # create data storage
-        replay_storage = ReplayBufferStorage(data_specs, 
-                                             meta_specs,
-                                             dir)
-        # create replay buffer
-        replay_loader = make_orig_replay_loader(replay_storage,
-                                                cfg.replay_buffer_size,
-                                                cfg.batch_size,
-                                                cfg.replay_buffer_num_workers,
-                                                cfg.save_buffer,
-                                                cfg.nstep,
-                                                cfg.discount)
-        return replay_storage, replay_loader
 
 
 
