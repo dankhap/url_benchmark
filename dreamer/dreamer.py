@@ -192,7 +192,6 @@ class Dreamer(nn.Module):
             self._update_count += 1
         self._metrics["update_count"] = self._update_count
         if steps > 0 and self._should_log_policy(global_step):
-            print(f"updated for {steps} steps")
             self.log_metrics(next(on_iter), global_step)
         return {}
 

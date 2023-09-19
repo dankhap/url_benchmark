@@ -13,7 +13,7 @@ frame_stack: 1 # only works if obs_type=pixels
 action_repeat: ${obs_type_params.action_repeat} # set to 2 for pixels
 discount: 0.99
 # train settings
-num_train_frames: 3000000
+num_train_frames: 3000100
 num_seed_frames: 3000
 # eval
 eval_every_frames: 0
