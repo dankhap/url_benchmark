@@ -11,6 +11,7 @@ from omegaconf import OmegaConf
 from torch import distributions as pyd
 from torch.distributions.utils import _standard_normal
 
+from replay_buffer import ReplayBufferStorage, make_orig_replay_loader, make_replay_loader
 
 class eval_mode:
     def __init__(self, *models):
@@ -27,8 +28,23 @@ class eval_mode:
             model.train(state)
         return False
 
+def make_store_loader(data_specs, meta_specs, cfg, dir):
+    # create data storage
+    replay_storage = ReplayBufferStorage(data_specs, 
+                                         meta_specs,
+                                         dir)
+    # create replay buffer
+    replay_loader = make_orig_replay_loader(replay_storage,
+                                            cfg.replay_buffer_size,
+                                            cfg.batch_size,
+                                            cfg.replay_buffer_num_workers,
+                                            cfg.save_buffer,
+                                            cfg.nstep,
+                                            cfg.discount)
+    return replay_storage, replay_loader
 
 def set_seed_everywhere(seed):
+    seed += 1
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)

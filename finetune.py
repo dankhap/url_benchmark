@@ -25,7 +25,7 @@ from dm_env import specs
 import dmc
 import utils
 from logger import Logger
-from replay_buffer import ReplayBufferStorage, make_orig_replay_loader, make_replay_loader
+from replay_buffer import  make_store_loader
 from video import TrainVideoRecorder, VideoRecorder
 
 from dreamer.dreamer import Dreamer
@@ -42,7 +42,6 @@ def make_agent(obs_type, obs_spec, action_spec, num_expl_steps, load_only_encode
     cfg.load_only_encoder = load_only_encoder
     return hydra.utils.instantiate(cfg)
 
-
 class Workspace:
     def __init__(self, cfg):
         self.work_dir = Path.cwd()
@@ -58,6 +57,7 @@ class Workspace:
         print(f'workspace: {self.work_dir}')
         print(f'slurm job id: {os.environ.get("SLURM_JOB_ID", "none")}')
         full_config = OmegaConf.to_container(cfg, resolve=True)
+        full_config['slurm_job_id'] = os.environ.get("SLURM_JOB_ID", "none")
         print(json.dumps(full_config, indent=2))
 
         self.cfg = cfg
@@ -109,18 +109,9 @@ class Workspace:
                       specs.Array((1,), np.float32, 'reward'),
                       specs.Array((1,), np.float32, 'discount'))
 
-
-        # create data storage
-        self.replay_storage = ReplayBufferStorage(data_specs, meta_specs,
-                                                  self.work_dir / 'buffer')
-        # create replay buffer
-        self.replay_loader = make_orig_replay_loader(self.replay_storage,
-                                                cfg.replay_buffer_size,
-                                                cfg.batch_size,
-                                                cfg.replay_buffer_num_workers,
-                                                cfg.save_buffer,
-                                                cfg.nstep,
-                                                cfg.discount)
+        self.replay_storage, self.replay_loader = make_store_loader(data_specs, meta_specs, 
+                                                                 cfg, 
+                                                                 self.work_dir / 'buffer')
         self._replay_iter = None
 
         # create video recorders
@@ -134,17 +125,26 @@ class Workspace:
         self._global_episode = 0
 
         if "dreamer_conf" in cfg:
-            assert cfg.device == cfg.dreamer_conf.dreamer.device
-            self.replay_offline_storage = ReplayBufferStorage(data_specs, meta_specs,
-                                                      self.buffer_dir / 'buffer')
-            # create replay buffer
-            self.replay_offline_loader = make_orig_replay_loader(self.replay_offline_storage,
-                                                    cfg.replay_buffer_size,
-                                                    cfg.batch_size,
-                                                    cfg.replay_buffer_num_workers,
-                                                    cfg.save_buffer, cfg.nstep, cfg.discount)
-            self.dream_online_dataset = make_dataset_urlb(self.replay_loader, cfg.dreamer_conf.dreamer)
-            self.dream_offline_dataset = make_dataset_urlb(self.replay_offline_loader, cfg.dreamer_conf.dreamer)
+            dream_cfg = cfg.dreamer_conf.dreamer
+            assert cfg.device == dream_cfg.device
+            self.replay_offline_storage, self.replay_offline_loader = make_store_loader(
+                    data_specs, meta_specs, cfg, self.buffer_dir / 'buffer')
+            self.eval_store, self.eval_loader = make_store_loader(
+                    data_specs, meta_specs, cfg, self.work_dir / 'eval_buffer')
+
+            self.dream_online_dataset = make_dataset_urlb(
+                    self.replay_loader, 
+                    dream_cfg.batch_size,
+                    dream_cfg.batch_length)
+            self.dream_offline_dataset = make_dataset_urlb(
+                    self.replay_offline_loader,
+                    dream_cfg.batch_size,
+                    dream_cfg.batch_length)
+            self.dream_eval_dataset = make_dataset_urlb(
+                    self.eval_loader, 
+                    dream_cfg.batch_size,
+                    dream_cfg.batch_length)
+
             obs_spec = self.train_env.observation_spec()
             self.agent = Dreamer(
                 obs_spec,
@@ -155,6 +155,7 @@ class Workspace:
                 self.dream_offline_dataset,
                 self.dream_online_dataset,
                 self.video_recorder,
+                eval_data=self.dream_eval_dataset,
                 init_meta=True,
                 offline_loader=self.replay_offline_loader
             ).to(self.device)
@@ -214,6 +215,7 @@ class Workspace:
                 self.video_recorder.record(self.eval_env)
                 total_reward += time_step.reward
                 step += 1
+                self.eval_store.add(time_step, meta)
 
             episode += 1
             self.video_recorder.save(f'{self.global_frame}.mp4')
@@ -359,6 +361,8 @@ class Workspace:
             if not attempts:
                 break
         return None
+
+
 
 
 @hydra.main(config_path='.', config_name='finetune')
