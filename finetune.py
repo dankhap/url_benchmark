@@ -57,6 +57,7 @@ class Workspace:
         print(f'workspace: {self.work_dir}')
         print(f'slurm job id: {os.environ.get("SLURM_JOB_ID", "none")}')
         full_config = OmegaConf.to_container(cfg, resolve=True)
+        full_config['slurm_job_id'] = os.environ.get("SLURM_JOB_ID", "none")
         print(json.dumps(full_config, indent=2))
 
         self.cfg = cfg
