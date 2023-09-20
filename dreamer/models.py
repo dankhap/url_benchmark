@@ -258,7 +258,8 @@ class WorldModel(nn.Module):
             ax[i].plot(truth_r)
 
         # save plot to image
-        plt.savefig(f"{self._config.plotdir}/model_vs_truth.png")
+        # plt.savefig(f"{self._config.plotdir}/model_vs_truth.png")
+        fig.canvas.draw()
         plt_img_data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
         # plt_img_data = plt_img_data.reshape((1,) + fig.canvas.get_width_height()[::-1] + (3,))
         plt_img_data = plt_img_data.reshape( fig.canvas.get_width_height()[::-1] + (3,)).transpose(2, 0, 1)
