@@ -53,9 +53,6 @@ class Workspace:
             print("WARRNING: using buffer dir as work dir, data can get changed")
             self.buffer_dir = Path(cfg.buffer_dir)
 
-
-        print(f'workspace: {self.work_dir}')
-        print(f'slurm job id: {os.environ.get("SLURM_JOB_ID", "none")}')
         full_config = OmegaConf.to_container(cfg, resolve=True)
         full_config['slurm_job_id'] = os.environ.get("SLURM_JOB_ID", "none")
         print(json.dumps(full_config, indent=2))
@@ -78,6 +75,10 @@ class Workspace:
                 name=exp_name,
                 # sync_tensorboard=True,
                 config=full_config)
+
+        print(f'workspace: {cfg.work_dir}')
+        print(f'buffer_dir: {cfg.buffer_dir}')
+        print(f'slurm job id: {os.environ.get("SLURM_JOB_ID", "none")}')
 
         self.logger = Logger(self.work_dir,
                              use_tb=cfg.use_tb,
