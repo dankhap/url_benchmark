@@ -76,7 +76,7 @@ class Workspace:
                 # sync_tensorboard=True,
                 config=full_config)
 
-        print(f'workspace: {cfg.work_dir}')
+        print(f'workspace: {self.work_dir}')
         print(f'buffer_dir: {cfg.buffer_dir}')
         print(f'slurm job id: {os.environ.get("SLURM_JOB_ID", "none")}')
 
