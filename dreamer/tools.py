@@ -270,6 +270,7 @@ def sample_episodes(loader, length, seed=0, reload_freq=10):
             ret.pop("observation")
 
         samples_count += 1
+        loader.dataset._samples_since_last_fetch += 1
         yield ret
 
 

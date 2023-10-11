@@ -9,7 +9,6 @@ import sys
 os.environ["MUJOCO_GL"] = "egl"
 
 import numpy as np
-import ruamel.yaml as yaml
 
 sys.path.append(str(pathlib.Path(__file__).parent))
 

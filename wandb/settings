@@ -1,0 +1,5 @@
+[default]
+entity = urlb-gqn-test
+project = dreamerv3_urlb
+base_url = https://api.wandb.ai
+
