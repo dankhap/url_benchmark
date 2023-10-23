@@ -76,6 +76,9 @@ class Dreamer(nn.Module):
         self._off_dataset = offline_data
         self._on_dataset = online_data
         self._eval_dataset = eval_data
+        self._on_dataset = iter(self._on_dataset)
+        self._off_dataset = iter(self._off_dataset)
+        self._eval_dataset = iter(self._eval_dataset)
         self._initial_meta_ready = init_meta
         
 
@@ -137,7 +140,7 @@ class Dreamer(nn.Module):
             else self._should_train(step)
         )
         print("loading episodes")
-        itr_dataset = iter(self._off_dataset)
+        itr_dataset = self._off_dataset
         for s in tqdm([i for i in range(steps)]):
             self._train(online_data=None, 
                         offline_data=next(itr_dataset),
@@ -186,18 +189,15 @@ class Dreamer(nn.Module):
             else self._should_train(global_step)
         )
         steps = self._config.reward_finetune_steps if self._config.reward_finetune_steps > 0 else steps
-        on_iter = iter(self._on_dataset)
-        off_iter = iter(self._off_dataset)
-        eval_iter = iter(self._eval_dataset)
 
         for _ in range(steps):
-            self._train(next(on_iter), next(off_iter), offline=False)
+            self._train(next(self._on_dataset), next(self._off_dataset), offline=False)
             self._update_count += 1
         self._metrics["update_count"] = self._update_count
         if steps > 0 and self._should_log_policy(global_step):
             print(f"updated for {steps} steps")
             # latest_6_episodes = self._d
-            self.log_metrics(next(eval_iter), global_step)
+            self.log_metrics(next(self._eval_dataset), global_step)
         return {}
 
     def log_metrics(self, video_data, step=1, sub_prefix=""):
