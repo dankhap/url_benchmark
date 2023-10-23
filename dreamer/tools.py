@@ -10,7 +10,7 @@ import time
 import uuid
 import wandb
 import numpy as np
-
+import copy
 import torch
 from torch import nn
 from torch.nn import functional as F
@@ -210,26 +210,49 @@ def from_generator(generator, batch_size, length):
             data[key] = np.stack(data[key], 0)
         yield data
 
+def preprocess_obs(ret):  
+    obs = ret["observation"]
+    if type(obs) == list:
+        obs = np.stack(obs, 0)
+    if obs.shape[1] > 3:
+        obs = obs[:, :3]
+    if obs.shape[-2:] != (64, 64):
+        obs = ndi.zoom(obs, (1, 1, 64 / obs.shape[-2], 64 / obs.shape[-1]), order=1)
+    ret["image"] = obs
+    ret.pop("observation")
+    return ret
 
 def sample_episodes(loader, length, seed=0, reload_freq=10):
     random = np.random.RandomState(seed)
     samples_count = 0
     episodes = {}
+    cepi = 0
+    csteps = 0
     while True:
         if samples_count % reload_freq == 0:
             loader.dataset._try_fetch()
             episodes = loader.dataset._episodes
+            if len(episodes) > cepi:
+                cepi = len(episodes)
+                csteps = 0
+        current = loader.dataset._storage._current_episode
+        if len(current) != 0 and len(current['action']) > csteps:
+            csteps = len(current['action'])
+            episodes['current'] = copy.deepcopy(current)
         size = 0
         first_chunk = True
         p = np.array(
             [len(next(iter(episode.values()))) for episode in episodes.values()]
-        )
+            )
         p = p / np.sum(p)
         ret = {}
         ret["is_first"] = np.zeros(length, dtype=bool)
         ret["is_last"] = np.zeros(length, dtype=bool)
         while size < length:
             episode = random.choice(list(episodes.values()), p=p)
+            if "observation" in episode:
+                episode = preprocess_obs(episode)
+
             total = len(next(iter(episode.values())))
             # make sure at least one transition included
             if total < 2:
@@ -252,22 +275,14 @@ def sample_episodes(loader, length, seed=0, reload_freq=10):
                     )
                     for k, v in episode.items()
                 }
-                ret["is_first"][size] = True
                 ret["is_last"][size-1] = True
             size = len(next(iter(ret.values())))
          
         # preprocess, change observation to image and add is_first and is_last
-        if type(ret) == dict and "observation" in ret:
-            obs = ret["observation"]
-            if obs.shape[1] > 3:
-                obs = obs[:, :3]
-            if obs.shape[-2:] != (64, 64):
-                obs = ndi.zoom(obs, (1, 1, 64 / obs.shape[-2], 64 / obs.shape[-1]), order=1)
-
-            ret["image"] = obs
-            ret["is_first"] = ret["is_first"][:size]
-            ret["is_last"] = ret["is_last"][:size]
-            ret.pop("observation")
+        # if type(ret) == dict and "observation" in ret:
+            # ret = preprocess_obs(ret)
+        ret["is_first"] = ret["is_first"][:size]
+        ret["is_last"] = ret["is_last"][:size]
 
         samples_count += 1
         loader.dataset._samples_since_last_fetch += 1
