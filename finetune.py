@@ -52,6 +52,9 @@ class Workspace:
             # print("finished copying buffer")
             print("WARRNING: using buffer dir as work dir, data can get changed")
             self.buffer_dir = Path(cfg.buffer_dir)
+        else:
+            self.buffer_dir = self.work_dir
+
 
         full_config = OmegaConf.to_container(cfg, resolve=True)
         full_config['slurm_job_id'] = os.environ.get("SLURM_JOB_ID", "none")
