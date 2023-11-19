@@ -6,6 +6,15 @@ from pathlib import Path
 from time import sleep
 from collections import OrderedDict
 
+# os.environ["WANDB__SERVICE_WAIT"] = "300";
+os.environ["WANDB_MODE"] = "offline";
+os.environ['MKL_SERVICE_FORCE_INTEL'] = '1'
+os.environ['MUJOCO_GL'] = 'egl'
+
+# os.environ['MUJOCO_GL'] = 'osmesa'
+# os.environ['MESA_GL_VERSION_OVERRIDE'] = '3.3'
+# os.environ['MESA_GLSL_VERSION_OVERRIDE'] = '330'
+
 import wandb
 import hydra
 from omegaconf import OmegaConf
@@ -14,14 +23,6 @@ import torch
 from dm_env import specs
 import dmc
 
-# os.environ["WANDB__SERVICE_WAIT"] = "300";
-os.environ["WANDB_MODE"] = "offline";
-os.environ['MKL_SERVICE_FORCE_INTEL'] = '1'
-# os.environ['MUJOCO_GL'] = 'egl'
-
-os.environ['MUJOCO_GL'] = 'osmesa'
-# os.environ['MESA_GL_VERSION_OVERRIDE'] = '3.3'
-# os.environ['MESA_GLSL_VERSION_OVERRIDE'] = '330'
 
 import utils
 from logger import Logger
@@ -54,6 +55,7 @@ class Workspace:
         else:
             self.buffer_dir = self.work_dir
 
+        self.eval_store = None
 
         full_config = OmegaConf.to_container(cfg, resolve=True)
         full_config['slurm_job_id'] = os.environ.get("SLURM_JOB_ID", "none")
@@ -86,11 +88,14 @@ class Workspace:
                              use_tb=cfg.use_tb,
                              use_wandb=cfg.use_wandb)
         # create envs
+        resize = None
+        if "dreamer_conf" in cfg:
+            resize = (64, 64)
 
         self.train_env = dmc.make(cfg.task, cfg.obs_type, cfg.frame_stack,
-                                  cfg.action_repeat, cfg.seed, resize=(64, 64))
+                                  cfg.action_repeat, cfg.seed, resize=resize)
         self.eval_env = dmc.make(cfg.task, cfg.obs_type, cfg.frame_stack,
-                                 cfg.action_repeat, cfg.seed, resize=(64, 64))
+                                 cfg.action_repeat, cfg.seed, resize=resize)
 
         # create agent
         self.agent = make_agent(cfg.obs_type,
@@ -188,7 +193,7 @@ class Workspace:
         return self._replay_iter
 
     def act_warpper(self, time_step, meta, eval_mode):
-        if not type(meta) is not OrderedDict:
+        if type(meta) is not OrderedDict:
             meta.update({'extra_meta': {
                             "reset": time_step.step_type,
                             "reward": time_step.reward,
@@ -219,7 +224,8 @@ class Workspace:
                 self.video_recorder.record(self.eval_env)
                 total_reward += time_step.reward
                 step += 1
-                self.eval_store.add(time_step, meta)
+                if self.eval_store is not None:
+                    self.eval_store.add(time_step, meta)
 
             episode += 1
             self.video_recorder.save(f'{self.global_frame}.mp4')
