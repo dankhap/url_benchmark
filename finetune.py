@@ -7,7 +7,7 @@ from time import sleep
 from collections import OrderedDict
 
 # os.environ["WANDB__SERVICE_WAIT"] = "300";
-os.environ["WANDB_MODE"] = "offline";
+os.environ["WANDB_MODE"] = "online";
 os.environ['MKL_SERVICE_FORCE_INTEL'] = '1'
 os.environ['MUJOCO_GL'] = 'egl'
 
