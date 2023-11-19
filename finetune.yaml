@@ -1,7 +1,7 @@
 defaults:
   - agent: ddpg
   - obs_type_params: pixels
-  - dreamer_conf: configs
+  # - dreamer_conf: configs
   - override hydra/launcher: submitit_local
 
 # mode
