@@ -1,5 +1,4 @@
-#116/bash
-
+#!/usr/bin/bash
 algo=${1}
 obs=${2}
 env_task=${3}
