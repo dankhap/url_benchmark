@@ -383,11 +383,15 @@ class DDPGAgent:
         return use_offline
 
 
-    def update_double(self, online_replay, offline_replay, step):
-        sample_online = self.sample_pre_data(step)
-        return self.update(online_replay, step, sample_online)
+    def update(self, online_replay, offline_replay, step):
+        # online data will always be used
+        if offline_replay is None:
+            sample_online = True
+        else:
+            sample_online = self.sample_pre_data(step)
+        return self._update(online_replay, step, sample_online)
 
-    def update(self, replay_iter, step, online=True):
+    def _update(self, replay_iter, step, online=True):
         metrics = dict()
 
         if step % self.update_every_steps != 0:
