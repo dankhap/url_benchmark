@@ -70,7 +70,7 @@ class Workspace:
                 cfg.obs_type,
                 str(cfg.seed),
                 "finetune"])
-            wandb.init(project="urlb", entity="urlb-gqn-test", group=cfg.group_name,name=exp_name, config=cfg)
+            wandb.init(project="urlb_final", group=cfg.group_name,name=exp_name, config=cfg)
 
         self.logger = Logger(self.work_dir,
                              use_tb=cfg.use_tb,
