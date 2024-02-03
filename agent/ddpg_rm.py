@@ -163,7 +163,7 @@ class Critic(nn.Module):
         return q1, q2
 
 
-class DDPGAgent:
+class DDPGAgentRM:
     def __init__(self,
                  name,
                  reward_free,
@@ -365,13 +365,14 @@ class DDPGAgent:
             self.encoder_opt.step()
         return metrics
 
-    def sample_pre_data(self, step):
-        offline_samples = self.preload_steps
+    def sample_pre_data(self, online_steps, offline_steps, step):
+        # on warmup sample only online
+        offline_samples = offline_steps
         if offline_samples == 0:
           return False
-        if self.online_storage_size == 0 or step == 0:
+        if online_steps == 0:
           return True
-        online_samples = self.online_storage_size
+        online_samples = online_steps
       
         offline_samples = min(1000000 - online_samples, offline_samples)
         total = online_samples + offline_samples
@@ -386,12 +387,19 @@ class DDPGAgent:
     def update(self, online_replay, offline_replay, step):
         # online data will always be used
         if offline_replay is None:
-            sample_online = True
+            sample_offline = False
         else:
-            sample_online = self.sample_pre_data(step)
-        return self._update(online_replay, step, sample_online)
+            # online_steps = online_replay._dataset._storage._num_transitions
+            online_steps = step
+            offline_steps = offline_replay._dataset._storage._num_transitions
+            sample_offline = self.sample_pre_data(online_steps, offline_steps, step)
 
-    def _update(self, replay_iter, step, online=True):
+        buffer_replay = offline_replay if sample_offline else online_replay
+        metrics = self._update(buffer_replay, step, sample_offline, only_rm=(offline_replay is None))
+        metrics['offline_selected'] = sample_offline
+        return metrics
+
+    def _update(self, replay_iter, step, offline=False, only_rm=False):
         metrics = dict()
 
         if step % self.update_every_steps != 0:
@@ -406,25 +414,24 @@ class DDPGAgent:
         with torch.no_grad():
             next_obs = self.aug_and_encode(next_obs)
 
-        if not online:
+        if offline:
             reward = self.reward_model(obs, action)
 
         if self.use_tb or self.use_wandb:
             metrics['batch_reward'] = reward.mean().item()
 
-        # update critic
-        metrics.update(
-            self.update_critic(obs, action, reward, discount, next_obs, step))
-
-        if online:
+        if not offline:
             metrics.update(
                     self.update_reward_model(obs, action, reward))
 
-        # update actor
-        metrics.update(self.update_actor(obs.detach(), step))
-
-        # update critic target
-        utils.soft_update_params(self.critic, self.critic_target,
-                                 self.critic_target_tau)
+        # update critic
+        if not only_rm:
+            metrics.update(
+                self.update_critic(obs, action, reward, discount, next_obs, step))
+            # update actor
+            metrics.update(self.update_actor(obs.detach(), step))
+            # update critic target
+            utils.soft_update_params(self.critic, self.critic_target,
+                                     self.critic_target_tau)
 
         return metrics
