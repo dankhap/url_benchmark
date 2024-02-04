@@ -63,8 +63,9 @@ class Workspace:
         if cfg.buffer_dir != "":
             print(f'buffer_dir: {cfg.buffer_dir}')
             self.buffer_dir = Path(cfg.buffer_dir)
-            # copy_tree(cfg.buffer_dir, str(self.work_dir))
-            # print("finished copying buffer")
+            if not self.buffer_dir.exists():
+                print("buffer_dir does not exist")
+                exit()
             self.using_buffer = True
 
         print(f'workspace: {self.work_dir}')
@@ -127,7 +128,7 @@ class Workspace:
         ################ create exploration buffer
         if self.using_buffer:
             buffer_storage = ReplayBufferStorage(data_specs, meta_specs,
-                                                      self.buffer_dir)
+                                                      self.buffer_dir / 'buffer')
             # create replay buffer
             self.buffer_loader = make_orig_replay_loader(buffer_storage,
                                                     cfg.replay_buffer_size,
