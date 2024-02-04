@@ -39,6 +39,22 @@ def make_agent(obs_type, obs_spec, action_spec, num_expl_steps, load_only_encode
     return hydra.utils.instantiate(cfg)
 
 
+def build_name(cfg, using_buffer):
+    name_parts = [
+        cfg.pretrained_agent,
+        cfg.task,
+        cfg.obs_type,
+        str(cfg.seed)]
+    exp_type = ""
+    if using_buffer:
+        exp_type = "buffered"
+    elif cfg.snapshot_ts == 0:
+        exp_type = "clean"
+    else:
+        exp_type = "finetune"
+    name_parts.append(exp_type)
+    return name_parts
+
 class Workspace:
     def __init__(self, cfg):
         self.work_dir = Path.cwd()
@@ -58,14 +74,11 @@ class Workspace:
         utils.set_seed_everywhere(cfg.seed)
         self.device = torch.device(cfg.device)
 
+
         # create logger
         if cfg.use_wandb:
-            exp_name = '_'.join([cfg.experiment,
-                self.cfg.pretrained_agent,
-                cfg.task,
-                cfg.obs_type,
-                str(cfg.seed),
-                "finetune"])
+            exp_name_parts = build_name(cfg, self.using_buffer)
+            exp_name = '_'.join(exp_name_parts)
             wandb.init(project="urlb_final", group=cfg.group_name,name=exp_name, config=cfg)
 
         self.logger = Logger(self.work_dir,
