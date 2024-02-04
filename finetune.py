@@ -43,16 +43,16 @@ def build_name(cfg, using_buffer):
     name_parts = [
         cfg.pretrained_agent,
         str(cfg.seed)]
-    exp_type = ""
     if using_buffer:
         name_parts.append("buffered")
+
     if cfg.snapshot_ts == 0:
         name_parts.append("clean")
     else:
-        exp_type = "finetune"
+        name_parts.append("finetune")
+
     if cfg.load_only_encoder:
         name_parts.append("partial")
-    name_parts.append(exp_type)
     return name_parts
 
 class Workspace:
