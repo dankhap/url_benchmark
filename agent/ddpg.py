@@ -294,7 +294,10 @@ class DDPGAgent:
         obs = self.aug(obs)
         return self.encoder(obs)
 
-    def update(self, replay_iter, step):
+    def update(self, replay_iter,offline_iter=None, step=0):
+        return self._update(replay_iter, step)
+
+    def _update(self, replay_iter, step):
         metrics = dict()
         #import ipdb; ipdb.set_trace()
 

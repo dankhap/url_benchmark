@@ -28,13 +28,7 @@ from video import TrainVideoRecorder, VideoRecorder
 import wandb
 
 warnings.filterwarnings('ignore', category=DeprecationWarning)
-
-
-
-
-
 torch.backends.cudnn.benchmark = True
-
 
 def make_agent(obs_type, obs_spec, action_spec, num_expl_steps, load_only_encoder, cfg):
     cfg.obs_type = obs_type
@@ -48,12 +42,14 @@ def make_agent(obs_type, obs_spec, action_spec, num_expl_steps, load_only_encode
 class Workspace:
     def __init__(self, cfg):
         self.work_dir = Path.cwd()
-        self.buffer_dir = self.work_dir
+        # self.buffer_dir = self.work_dir
+        self.using_buffer = False
         if cfg.buffer_dir != "":
             print(f'buffer_dir: {cfg.buffer_dir}')
-            copy_tree(cfg.buffer_dir, str(self.work_dir))
-            print("finished copying buffer")
-            # self.buffer_dir = Path(cfg.buffer_dir)
+            self.buffer_dir = Path(cfg.buffer_dir)
+            # copy_tree(cfg.buffer_dir, str(self.work_dir))
+            # print("finished copying buffer")
+            self.using_buffer = True
 
         print(f'workspace: {self.work_dir}')
         print(f'slurm job id: {os.environ["SLURM_JOB_ID"]}')
@@ -65,7 +61,7 @@ class Workspace:
         # create logger
         if cfg.use_wandb:
             exp_name = '_'.join([cfg.experiment,
-                cfg.agent.name,
+                self.cfg.pretrained_agent,
                 cfg.task,
                 cfg.obs_type,
                 str(cfg.seed),
@@ -105,7 +101,7 @@ class Workspace:
 
         # create data storage
         self.replay_storage = ReplayBufferStorage(data_specs, meta_specs,
-                                                  self.buffer_dir / 'buffer')
+                                                  self.work_dir / 'buffer')
         # create replay buffer
         self.replay_loader = make_orig_replay_loader(self.replay_storage,
                                                 cfg.replay_buffer_size,
@@ -113,6 +109,19 @@ class Workspace:
                                                 cfg.replay_buffer_num_workers,
                                                 cfg.save_buffer, cfg.nstep, cfg.discount)
         self._replay_iter = None
+
+        self.buffer_loader = None
+        ################ create exploration buffer
+        if self.using_buffer:
+            buffer_storage = ReplayBufferStorage(data_specs, meta_specs,
+                                                      self.buffer_dir)
+            # create replay buffer
+            self.buffer_loader = make_orig_replay_loader(buffer_storage,
+                                                    cfg.replay_buffer_size,
+                                                    cfg.batch_size,
+                                                    cfg.replay_buffer_num_workers,
+                                                    cfg.save_buffer, cfg.nstep, cfg.discount)
+            self._buffer_iter = None
 
         # create video recorders
         self.video_recorder = VideoRecorder(
@@ -122,7 +131,12 @@ class Workspace:
 
         self.timer = utils.Timer()
         self._global_step = 0
+        self._global_iter = 0
         self._global_episode = 0
+
+    @property
+    def global_iter(self):
+        return self._global_iter 
 
     @property
     def global_step(self):
@@ -135,6 +149,14 @@ class Workspace:
     @property
     def global_frame(self):
         return self.global_step * self.cfg.action_repeat
+
+    @property
+    def buffer_iter(self):
+        if self.buffer_loader is None:
+            return None
+        if self._buffer_iter is None:
+            self._buffer_iter = iter(self.buffer_loader)
+        return self._buffer_iter
 
     @property
     def replay_iter(self):
@@ -184,6 +206,7 @@ class Workspace:
         self.replay_storage.add(time_step, meta)
         self.train_video_recorder.init(time_step.observation)
         metrics = None
+        train_started = False
         while train_until_step(self.global_step):
             if time_step.last():
                 self._global_episode += 1
@@ -229,6 +252,7 @@ class Workspace:
                     meta = self.agent.regress_meta(self.replay_iter,
                                                    self.global_step)
 
+            offline_selected = False
             # sample action
             with torch.no_grad(), utils.eval_mode(self.agent):
                 action = self.agent.act(time_step.observation,
@@ -238,6 +262,11 @@ class Workspace:
 
             # try to update the agent
             if not seed_until_step(self.global_step):
+                if train_started == False:
+                    self._global_iter += self.global_step
+                    for _ in range(self.cfg.pretrain_steps):
+                        self.agent.update(self.replay_iter, None, self.global_iter)
+                    train_started = True
 
 
                 batches_per_step = 1
@@ -245,9 +274,13 @@ class Workspace:
                     batches_per_step = self.get_bathch_count_linear(self.global_step)
                 elif self.cfg.batch_sched == 'fast':
                     batches_per_step = self.get_num_of_batches_per_update(self.global_step)
-                for _ in range(int(batches_per_step)):
-                    metrics = self.agent.update(self.replay_iter, self.global_step)
+                offline_selected = True
+                # for _ in range(int(batches_per_step)):
+                while offline_selected:
+                    metrics = self.agent.update(self.replay_iter, self.buffer_iter, self.global_iter)
+                    offline_selected &= metrics.get('offline_selected', False)
                     self.logger.log_metrics(metrics, self.global_frame, ty='train')
+                    self._global_iter += 1
 
             # take env step
             time_step = self.train_env.step(action)
@@ -301,7 +334,7 @@ class Workspace:
         return None
 
 
-@hydra.main(config_path='/code/url_benchmark/', config_name='finetune')
+@hydra.main(config_path='/code/url_benchmark_bare/buffered/', config_name='finetune')
 def main(cfg):
     from finetune import Workspace as W
     root_dir = Path.cwd()
