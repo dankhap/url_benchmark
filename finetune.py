@@ -42,16 +42,16 @@ def make_agent(obs_type, obs_spec, action_spec, num_expl_steps, load_only_encode
 def build_name(cfg, using_buffer):
     name_parts = [
         cfg.pretrained_agent,
-        cfg.task,
-        cfg.obs_type,
         str(cfg.seed)]
     exp_type = ""
     if using_buffer:
-        exp_type = "buffered"
-    elif cfg.snapshot_ts == 0:
-        exp_type = "clean"
+        name_parts.append("buffered")
+    if cfg.snapshot_ts == 0:
+        name_parts.append("clean")
     else:
         exp_type = "finetune"
+    if cfg.load_only_encoder:
+        name_parts.append("partial")
     name_parts.append(exp_type)
     return name_parts
 
