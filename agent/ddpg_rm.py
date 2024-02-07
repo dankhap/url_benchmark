@@ -214,10 +214,12 @@ class DDPGAgentRM:
         if obs_type == 'pixels':
             self.aug = utils.RandomShiftsAug(pad=4)
             self.encoder = Encoder(obs_shape).to(device)
+            self.rm_encoder = Encoder(obs_shape).to(device)
             self.obs_dim = self.encoder.repr_dim + meta_dim
         else:
             self.aug = nn.Identity()
             self.encoder = nn.Identity()
+            self.rm_encoder = nn.Identity()
             self.obs_dim = obs_shape[0] + meta_dim
 
         self.reward_model = RewardModel(obs_type, self.obs_dim, self.action_dim,
@@ -234,14 +236,17 @@ class DDPGAgentRM:
 
         # optimizers
 
+        reward_model_params = list(self.reward_model.parameters())
+
         if obs_type == 'pixels':
+            reward_model_params += list(self.rm_encoder.parameters())
             self.encoder_opt = torch.optim.Adam(self.encoder.parameters(),
                                                 lr=lr)
         else:
             self.encoder_opt = None
         self.actor_opt = torch.optim.Adam(self.actor.parameters(), lr=lr)
         self.critic_opt = torch.optim.Adam(self.critic.parameters(), lr=lr)
-        self.reward_model_opt = torch.optim.Adam(self.reward_model.parameters(), lr=lr)
+        self.reward_model_opt = torch.optim.Adam(reward_model_params, lr=lr)
 
         self.train()
         self.critic_target.train()
@@ -256,6 +261,7 @@ class DDPGAgentRM:
     def init_from(self, other):
         # copy parameters over
         utils.hard_update_params(other.encoder, self.encoder)
+        utils.hard_update_params(other.encoder, self.rm_encoder)
         if not self.load_only_encoder:
             utils.hard_update_params(other.actor, self.actor)
         if self.init_critic:
@@ -345,7 +351,7 @@ class DDPGAgentRM:
 
     def aug_and_encode(self, obs):
         obs = self.aug(obs)
-        return self.encoder(obs)
+        return self.encoder(obs), self.rm_encoder(obs)
 
     def update_reward_model(self, obs, action, reward):
         metrics = dict()
@@ -356,13 +362,9 @@ class DDPGAgentRM:
             metrics['reward_loss'] = reward_loss.item()
 
         # optimize reward
-        if self.encoder_opt is not None:
-            self.encoder_opt.zero_grad(set_to_none=True)
         self.reward_model_opt.zero_grad(set_to_none=True)
         reward_loss.backward()
         self.reward_model_opt.step()
-        if self.encoder_opt is not None:
-            self.encoder_opt.step()
         return metrics
 
     def sample_pre_data(self, online_steps, offline_steps, step):
@@ -410,19 +412,19 @@ class DDPGAgentRM:
             batch, self.device)
 
         # augment and encode
-        obs = self.aug_and_encode(obs)
+        obs, rm_obs = self.aug_and_encode(obs)
         with torch.no_grad():
-            next_obs = self.aug_and_encode(next_obs)
+            next_obs, _ = self.aug_and_encode(next_obs)
 
         if offline:
-            reward = self.reward_model(obs, action)
+            reward = self.reward_model(rm_obs, action)
 
         if self.use_tb or self.use_wandb:
             metrics['batch_reward'] = reward.mean().item()
 
         if not offline:
             metrics.update(
-                    self.update_reward_model(obs, action, reward))
+                    self.update_reward_model(rm_obs, action, reward))
 
         # update critic
         if not only_rm:
