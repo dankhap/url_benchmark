@@ -184,7 +184,9 @@ class DDPGAgentRM:
                  init_critic,
                  use_tb,
                  use_wandb,
+                 pretrain_steps,
                  load_only_encoder=False,
+                 load_rm_encoder=False,
                  update_encoder=True,
                  meta_dim=0):
         self.reward_free = reward_free
@@ -205,6 +207,8 @@ class DDPGAgentRM:
         self.feature_dim = feature_dim
         self.solved_meta = None
         self.load_only_encoder = load_only_encoder
+        self.load_rm_encoder = load_rm_encoder
+        self.pretrain_steps = pretrain_steps
         self.preload_steps = 0
         self.online_storage_size = 0
 
@@ -261,7 +265,8 @@ class DDPGAgentRM:
     def init_from(self, other):
         # copy parameters over
         utils.hard_update_params(other.encoder, self.encoder)
-        utils.hard_update_params(other.encoder, self.rm_encoder)
+        if self.load_rm_encoder:
+            utils.hard_update_params(other.encoder, self.rm_encoder)
         if not self.load_only_encoder:
             utils.hard_update_params(other.actor, self.actor)
         if self.init_critic:
