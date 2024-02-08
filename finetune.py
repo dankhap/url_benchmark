@@ -51,8 +51,13 @@ def build_name(cfg, using_buffer):
     else:
         name_parts.append("finetune")
 
-    if cfg.load_only_encoder:
-        name_parts.append("partial")
+    if cfg.obs_type == "pixels":
+        if cfg.load_only_encoder:
+            name_parts.append("partial")
+        if cfg.agent.load_rm_encoder:
+            name_parts.append("load_rm")
+        else:
+            name_parts.append("clean_rm")
     return name_parts
 
 class Workspace:
