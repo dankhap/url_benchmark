@@ -43,6 +43,10 @@ freeze_encoder: false
 load_only_encoder: false
 buffer_dir: "" 
 pretrain_steps: 0
+d4rl: false
+expert_buffer_dir: ""
+
+# buffer_dir=/code/url_benchmark/buffers/icm_walker_pixels_buffer16"
 # buffer_dir: /code/url_benchmark/exp_local/2022.08.11/test_double_buffer/
 # buffer_dir: /code/url_benchmark/exp_local/2022.09.29/quad_run_buffer/
 # buffer_dir: /code/url_benchmark/exp_local/2022.09.29/quad_jump_buffer/

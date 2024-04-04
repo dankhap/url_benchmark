@@ -32,10 +32,11 @@ def load_episode(fn):
 
 
 class ReplayBufferStorage:
-    def __init__(self, data_specs, meta_specs, replay_dir):
+    def __init__(self, data_specs, meta_specs, replay_dir, d4rl=False):
         self._data_specs = data_specs
         self._meta_specs = meta_specs
         self._replay_dir = replay_dir
+        self.d4rl = d4rl
         replay_dir.mkdir(exist_ok=True)
         self._current_episode = defaultdict(list)
         self._preload()

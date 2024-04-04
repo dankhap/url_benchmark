@@ -38,7 +38,7 @@ do
 	    for k in "${tasks[@]}"
  	    do
 		#bash ./start_fine.sh $a $o $k $t 16
-		echo "running: bash ./start_fine.sh $a $o $k $t "
+		echo "running: bash ./start_fine_imp.sh $a $o $k $t "
 		bash ./start_fine.sh $a $o $k 16 $t
 		bash ./start_fine.sh $a $o $k 26 $t
 	    done

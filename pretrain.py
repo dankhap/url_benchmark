@@ -86,7 +86,8 @@ class Workspace:
         data_specs = (self.train_env.observation_spec(),
                       self.train_env.action_spec(),
                       specs.Array((1,), np.float32, 'reward'),
-                      specs.Array((1,), np.float32, 'discount'))
+                      specs.Array((1,), np.float32, 'discount'), 
+                      specs.Array((24,), np.float64,'state'))
 
         # create data storage
         self.replay_storage = ReplayBufferStorage(data_specs, meta_specs,

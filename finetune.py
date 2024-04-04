@@ -133,7 +133,8 @@ class Workspace:
         ################ create exploration buffer
         if self.using_buffer:
             buffer_storage = ReplayBufferStorage(data_specs, meta_specs,
-                                                      self.buffer_dir / 'buffer')
+                                                 self.buffer_dir / 'buffer',
+                                                 cfg.d4rl)
             # create replay buffer
             self.buffer_loader = make_orig_replay_loader(buffer_storage,
                                                     cfg.replay_buffer_size,
