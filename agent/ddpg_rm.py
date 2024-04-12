@@ -14,7 +14,11 @@ class Encoder(nn.Module):
         super().__init__()
 
         assert len(obs_shape) == 3
-        self.repr_dim = 32 * 35 * 35
+        # support data from dreamer code
+        if obs_shape[-1] == 64:
+            self.repr_dim = 32 * 25 * 25
+        else:
+            self.repr_dim = 32 * 35 * 35
 
         self.convnet = nn.Sequential(nn.Conv2d(obs_shape[0], 32, 3, stride=2),
                                      nn.ReLU(), nn.Conv2d(32, 32, 3, stride=1),

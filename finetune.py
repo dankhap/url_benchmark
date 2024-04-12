@@ -10,6 +10,7 @@ os.environ['MUJOCO_GL'] = 'osmesa'
 
 os.environ['MESA_GL_VERSION_OVERRIDE'] = '3.3'
 os.environ['MESA_GLSL_VERSION_OVERRIDE'] = '330'
+os.environ['WANDB_MODE'] = 'offline'
 
 from pathlib import Path
 from time import sleep
@@ -63,6 +64,7 @@ def build_name(cfg, using_buffer):
 class Workspace:
     def __init__(self, cfg):
         self.work_dir = Path.cwd()
+        self.expert_buffer = None
         # self.buffer_dir = self.work_dir
         self.using_buffer = False
         if cfg.buffer_dir != "":
@@ -72,6 +74,11 @@ class Workspace:
                 print("buffer_dir does not exist")
                 exit()
             self.using_buffer = True
+        if cfg.expert_buffer_dir != "":
+            self.expert_buffer = Path(cfg.expert_buffer_dir)
+            if not self.buffer_dir.exists():
+                print("expert_buffer_dir does not exist")
+                exit()
 
         print(f'workspace: {self.work_dir}')
         print(f'slurm job id: {os.environ["SLURM_JOB_ID"]}')
@@ -118,6 +125,10 @@ class Workspace:
                       specs.Array((1,), np.float32, 'reward'),
                       specs.Array((1,), np.float32, 'discount'))
 
+        if self.expert_buffer != None:
+            # preload expert buffer
+            self.expert_buffer = self.expert_buffer / 'buffer'
+
         # create data storage
         self.replay_storage = ReplayBufferStorage(data_specs, meta_specs,
                                                   self.work_dir / 'buffer')
@@ -126,7 +137,9 @@ class Workspace:
                                                 cfg.replay_buffer_size,
                                                 cfg.batch_size,
                                                 cfg.replay_buffer_num_workers,
-                                                cfg.save_buffer, cfg.nstep, cfg.discount)
+                                                cfg.save_buffer, cfg.nstep, cfg.discount,
+                                                preload_path=self.expert_buffer,
+                                                preload_steps=cfg.expert_steps)
         self._replay_iter = None
 
         self.buffer_loader = None
@@ -140,7 +153,7 @@ class Workspace:
                                                     cfg.replay_buffer_size,
                                                     cfg.batch_size,
                                                     cfg.replay_buffer_num_workers,
-                                                    cfg.save_buffer, cfg.nstep, cfg.discount)
+                                                    True, cfg.nstep, cfg.discount)
             self._buffer_iter = None
 
         # create video recorders

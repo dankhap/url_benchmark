@@ -1,13 +1,13 @@
+from typing import Optional
 import datetime
 import sys
 import io
 import random
 import traceback
 from collections import defaultdict
-
+from pathlib import Path
 import numpy as np
 import torch
-import torch.nn as nn
 from torch.utils.data import IterableDataset
 
 
@@ -68,7 +68,13 @@ class ReplayBufferStorage:
         self._num_episodes = 0
         self._num_transitions = 0
         for fn in self._replay_dir.glob('*.npz'):
-            _, _, eps_len = fn.stem.split('_')
+            stem = fn.stem
+            if '-' in stem:
+                eps_len = stem.split('-')[-1]
+            elif '_' in stem:
+                eps_len = stem.split('_')[-1]
+            else:
+                raise RuntimeError()
             self._num_episodes += 1
             self._num_transitions += int(eps_len)
 
@@ -84,7 +90,9 @@ class ReplayBufferStorage:
 
 class ReplayBuffer(IterableDataset):
     def __init__(self, storage, max_size, num_workers, nstep, discount,
-                 fetch_every, save_snapshot):
+                 fetch_every, save_snapshot, 
+                 preload_path=None,
+                 preload_steps=0):
         self._storage = storage
         self._size = 0
         self._max_size = max_size
@@ -96,6 +104,34 @@ class ReplayBuffer(IterableDataset):
         self._fetch_every = fetch_every
         self._samples_since_last_fetch = fetch_every
         self._save_snapshot = save_snapshot
+        if preload_path:
+            self._preload(path=preload_path, steps=preload_steps)
+
+    def _preload(self, path, steps):
+        for fn in path.glob('*.npz'):
+            self._episode_fns.append(fn)
+            episode = load_episode(fn)
+            # assume preloading, which only happens for expert demos, is pixel based and doesnt include frame stacking, so we apply it here manually
+            episode['observation'] = self.restack(episode['observation'], 3)
+            self._episodes[fn] = episode
+            self._size += episode_len(self._episodes[fn])
+            # if restack needed for an observation, update and restack it
+            
+            
+            if steps > 0 and self._size >= steps:
+                break
+
+    def restack(self, pixels, stack_size):
+        # pixels = pixels.transpose(0, 3, 1, 2)
+        first = np.expand_dims(pixels[0], axis=0)
+        fst = np.repeat(first, stack_size-1, axis=0)
+        pixels = np.concatenate([fst, pixels])
+        obs = []
+        for i in range(len(pixels) - stack_size + 1):
+            obs.append(np.concatenate(list(pixels[i:i + stack_size])))
+
+        return np.array(obs)
+
 
     def _sample_episode(self):
         # print(f"num of episode {len(self._episode_fns)}")
@@ -103,11 +139,15 @@ class ReplayBuffer(IterableDataset):
         return self._episodes[eps_fn]
 
     def _store_episode(self, eps_fn):
+        # TODO: same re-stacking of observation is need here too, not only on sideloaded expert episodes
         try:
             episode = load_episode(eps_fn)
         except:
             return False
         eps_len = episode_len(episode)
+        if episode['observation'].shape[1] != self._storage._data_specs[0].shape[0]:
+            episode['observation'] = self.restack(episode['observation'], 3)
+
         while eps_len + self._size > self._max_size:
             early_eps_fn = self._episode_fns.pop(0)
             early_eps = self._episodes.pop(early_eps_fn)
@@ -132,8 +172,16 @@ class ReplayBuffer(IterableDataset):
             worker_id = 0
         eps_fns = sorted(self._storage._replay_dir.glob('*.npz'), reverse=True)
         fetched_size = 0
-        for eps_fn in eps_fns:
-            eps_idx, eps_len = [int(x) for x in eps_fn.stem.split('_')[1:]]
+        for i, eps_fn in enumerate(eps_fns):
+            stem = eps_fn.stem
+            if '-' in stem:
+                eps_idx = i
+                eps_len = int(stem.split('-')[-1])
+            elif '_' in stem:
+                eps_idx, eps_len = [int(x) for x in eps_fn.stem.split('_')[1:]]
+            else:
+                raise RuntimeError()
+
             if eps_idx % self._num_workers != worker_id:
                 continue
             if eps_fn in self._episodes.keys():
@@ -226,7 +274,9 @@ def get_worker_init_fn(oseed):
 
 
 def make_orig_replay_loader(storage, max_size, batch_size, num_workers,
-                       save_snapshot, nstep, discount, seed=0):
+                            save_snapshot, nstep, discount, seed=0,
+                            preload_path: Optional[Path] = None,
+                            preload_steps=0):
     max_size_per_worker = max_size // max(1, num_workers)
 
     iterable = ReplayBuffer(storage,
@@ -235,7 +285,9 @@ def make_orig_replay_loader(storage, max_size, batch_size, num_workers,
                             nstep,
                             discount,
                             fetch_every=1000,
-                            save_snapshot=save_snapshot)
+                            save_snapshot=save_snapshot,
+                            preload_path=preload_path,
+                            preload_steps=preload_steps)
 
     loader = torch.utils.data.DataLoader(iterable,
                                          batch_size=batch_size,

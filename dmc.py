@@ -303,9 +303,10 @@ def _make_dmc(obs_type, domain, task, frame_stack, action_repeat, seed):
     env = ActionDTypeWrapper(env, np.float32)
     env = ActionRepeatWrapper(env, action_repeat)
     if obs_type == 'pixels':
+        img_size = 64
         # zoom in camera for quadruped
         camera_id = dict(quadruped=2).get(domain, 0)
-        render_kwargs = dict(height=84, width=84, camera_id=camera_id)
+        render_kwargs = dict(height=img_size, width=img_size, camera_id=camera_id)
         env = pixels.Wrapper(env,
                              pixels_only=False,
                              render_kwargs=render_kwargs)

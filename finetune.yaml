@@ -37,15 +37,15 @@ use_wandb: true
 # experiment
 experiment: exp
 group_name: ddpg_rebuffered_quad_run
-# buffer_dir: /code/url_benchmark/exp_local/2022.08.11/135826_icm/
 double_buffer: false
 freeze_encoder: false
 load_only_encoder: false
-buffer_dir: "" 
 pretrain_steps: 0
 d4rl: false
-expert_buffer_dir: ""
 
+expert_buffer_dir: /code/url_benchmark/buffers/lbs_dreamer_walker_pixels/expert_run
+expert_steps: 2000
+buffer_dir: /code/url_benchmark/buffers/lbs_dreamer_walker_pixels/
 # buffer_dir=/code/url_benchmark/buffers/icm_walker_pixels_buffer16"
 # buffer_dir: /code/url_benchmark/exp_local/2022.08.11/test_double_buffer/
 # buffer_dir: /code/url_benchmark/exp_local/2022.09.29/quad_run_buffer/
@@ -62,7 +62,7 @@ expert_buffer_dir: ""
 # buffer_dir: "/code/url_benchmark/rnd_walker_pixel_buffer2"
 #buffer_dir: "/code/url_benchmark/rnd_quad_pixel_buffer"
 batch_sched: normal
-save_buffer: true
+save_buffer: false
 
 
 pretrained_agent: icm
