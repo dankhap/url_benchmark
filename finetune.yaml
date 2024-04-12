@@ -35,7 +35,7 @@ save_train_video: false
 use_tb: false
 use_wandb: true
 # experiment
-experiment: exp
+experiment: uorl_pretrain
 group_name: ddpg_rebuffered_quad_run
 double_buffer: false
 freeze_encoder: false

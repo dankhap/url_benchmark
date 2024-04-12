@@ -92,7 +92,7 @@ class Workspace:
         if cfg.use_wandb:
             exp_name_parts = build_name(cfg, self.using_buffer)
             exp_name = '_'.join(exp_name_parts)
-            wandb.init(project="urlb_final", group=cfg.group_name,name=exp_name, config=cfg)
+            wandb.init(project=cfg.experiment, group=cfg.group_name,name=exp_name, config=cfg)
 
         self.logger = Logger(self.work_dir,
                              use_tb=cfg.use_tb,
