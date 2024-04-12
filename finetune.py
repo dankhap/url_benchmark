@@ -42,6 +42,7 @@ def make_agent(obs_type, obs_spec, action_spec, num_expl_steps, load_only_encode
 
 def build_name(cfg, using_buffer):
     name_parts = [
+        cfg.task,
         cfg.pretrained_agent,
         str(cfg.seed)]
     if using_buffer:
