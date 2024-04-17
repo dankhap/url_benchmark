@@ -1,5 +1,5 @@
 import os
-import enum
+from enum import Enum
 from distutils.dir_util import copy_tree
 
 
@@ -10,7 +10,7 @@ os.environ['MUJOCO_GL'] = 'osmesa'
 
 os.environ['MESA_GL_VERSION_OVERRIDE'] = '3.3'
 os.environ['MESA_GLSL_VERSION_OVERRIDE'] = '330'
-# os.environ['WANDB_MODE'] = 'offline'
+os.environ['WANDB_MODE'] = 'offline'
 
 from pathlib import Path
 from time import sleep
@@ -62,10 +62,17 @@ def build_name(cfg, using_buffer):
             name_parts.append("clean_rm")
     return name_parts
 
+class TrainStage(Enum):
+    PRETRAIN = 0
+    FINETUNE = 1
+    OFFLINE = 2
+
+
 class Workspace:
     def __init__(self, cfg):
         self.work_dir = Path.cwd()
         self.expert_buffer = None
+        self.train_stage = TrainStage.PRETRAIN
         # self.buffer_dir = self.work_dir
         self.using_buffer = False
         if cfg.buffer_dir != "":
@@ -233,6 +240,7 @@ class Workspace:
                                       self.cfg.action_repeat)
         eval_every_step = utils.Every(self.cfg.eval_every_frames,
                                       self.cfg.action_repeat)
+        eval_every_update = utils.Every(self.cfg.eval_every_update)
 
         episode_step, episode_reward = 0, 0
         time_step = self.train_env.reset()
@@ -240,7 +248,6 @@ class Workspace:
         self.replay_storage.add(time_step, meta)
         self.train_video_recorder.init(time_step.observation)
         metrics = None
-        train_started = False
         while train_until_step(self.global_step):
             if time_step.last():
                 self._global_episode += 1
@@ -296,25 +303,29 @@ class Workspace:
 
             # try to update the agent
             if not seed_until_step(self.global_step):
-                if train_started == False:
+                if self.train_stage == TrainStage.PRETRAIN:
                     self._global_iter += self.global_step
                     for _ in range(self.cfg.pretrain_steps):
                         self.agent.update(self.replay_iter, None, self.global_iter)
-                    train_started = True
-
-
-                batches_per_step = 1
-                if self.cfg.batch_sched == 'linear':
-                    batches_per_step = self.get_bathch_count_linear(self.global_step)
-                elif self.cfg.batch_sched == 'fast':
-                    batches_per_step = self.get_num_of_batches_per_update(self.global_step)
-                offline_selected = True
-                # for _ in range(int(batches_per_step)):
-                while offline_selected:
-                    metrics = self.agent.update(self.replay_iter, self.buffer_iter, self.global_iter)
-                    offline_selected &= metrics.get('offline_selected', False)
-                    self.logger.log_metrics(metrics, self.global_frame, ty='train')
-                    self._global_iter += 1
+                    self.train_stage = TrainStage.FINETUNE
+                elif self.train_stage == TrainStage.FINETUNE:
+                    batches_per_step = 1
+                    if self.cfg.batch_sched == 'linear':
+                        batches_per_step = self.get_bathch_count_linear(self.global_step)
+                    elif self.cfg.batch_sched == 'fast':
+                        batches_per_step = self.get_num_of_batches_per_update(self.global_step)
+                    offline_selected = True
+                    # for _ in range(int(batches_per_step)):
+                    while offline_selected:
+                        metrics = self.agent.update(self.replay_iter, self.buffer_iter, self.global_iter)
+                        offline_selected &= metrics.get('offline_selected', False)
+                        ### DEBUG ###
+                        offline_selected = False
+                        if 'reward_loss' not in metrics:
+                            metrics['reward_loss'] = 0.0
+                        ### ########
+                        self.logger.log_metrics(metrics, self.global_frame, ty='train')
+                        self._global_iter += 1
 
             # take env step
             time_step = self.train_env.step(action)
@@ -323,6 +334,21 @@ class Workspace:
             self.train_video_recorder.record(time_step.observation)
             episode_step += 1
             self._global_step += 1
+
+        print("started offline stage")
+        for offline_update in range(self.cfg.offline_updates):
+            metrics = self.agent.update(self.replay_iter, self.buffer_iter, self.global_iter)
+            self._global_iter += 1
+            self._global_step += 1
+            self.logger.log_metrics(metrics, self.global_frame, ty='offline')
+
+            if eval_every_update(offline_update):
+                self.eval()
+
+            if self.global_step % self.cfg.offline_log_interval == 0:
+                with self.logger.log_and_dump_ctx(self.global_frame, ty='offline') as log:
+                    log('step', self.global_step)
+
 
     def get_bathch_count_linear(self, env_step:int):
         iter_num = -(env_step/500000) + 2.5

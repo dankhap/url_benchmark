@@ -50,8 +50,11 @@ class MetersGroup(object):
         for key, meter in self._meters.items():
             if key.startswith('train'):
                 key = key[len('train') + 1:]
-            else:
+            elif key.startswith('eval'):
                 key = key[len('eval') + 1:]
+            else:
+                key = key[len('offline') + 1:]
+
             key = key.replace('/', '_')
             data[key] = meter.value()
         return data
@@ -134,6 +137,9 @@ class Logger(object):
         self._eval_mg = MetersGroup(log_dir / 'eval.csv',
                                     formating=COMMON_EVAL_FORMAT,
                                     use_wandb=use_wandb)
+        self._offline_mg = MetersGroup(log_dir / 'offline.csv',
+                                     formating=COMMON_TRAIN_FORMAT,
+                                     use_wandb=use_wandb)
         if use_tb:
             self._sw = SummaryWriter(str(log_dir / 'tb'))
         else:
@@ -145,11 +151,17 @@ class Logger(object):
             self._sw.add_scalar(key, value, step)
 
     def log(self, key, value, step):
-        assert key.startswith('train') or key.startswith('eval')
+        assert key.startswith('train') or key.startswith('eval') or key.startswith('offline')
         if type(value) == torch.Tensor:
             value = value.item()
         self._try_sw_log(key, value, step)
-        mg = self._train_mg if key.startswith('train') else self._eval_mg
+        # mg = self._train_mg if key.startswith('train') else self._eval_mg
+        if key.startswith('train'):
+            mg = self._train_mg
+        elif key.startswith('eval'):
+            mg = self._eval_mg
+        else:
+            mg = self._offline_mg
         mg.log(key, value)
 
     def log_metrics(self, metrics, step, ty):
@@ -161,6 +173,8 @@ class Logger(object):
             self._eval_mg.dump(step, 'eval')
         if ty is None or ty == 'train':
             self._train_mg.dump(step, 'train')
+        if ty is None or ty == 'offline':
+            self._offline_mg.dump(step, 'offline')
 
     def log_and_dump_ctx(self, step, ty):
         return LogAndDumpCtx(self, step, ty)
