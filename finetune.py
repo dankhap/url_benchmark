@@ -320,9 +320,9 @@ class Workspace:
                         metrics = self.agent.update(self.replay_iter, self.buffer_iter, self.global_iter)
                         offline_selected &= metrics.get('offline_selected', False)
                         ### DEBUG ###
-                        offline_selected = False
-                        if 'reward_loss' not in metrics:
-                            metrics['reward_loss'] = 0.0
+                        # offline_selected = False
+                        # if 'reward_loss' not in metrics:
+                        #     metrics['reward_loss'] = 0.0
                         ### ########
                         self.logger.log_metrics(metrics, self.global_frame, ty='train')
                         self._global_iter += 1
