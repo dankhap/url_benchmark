@@ -42,7 +42,7 @@ freeze_encoder: false
 load_only_encoder: false
 pretrain_steps: 0
 d4rl: false
-
+offline_true_sample_rate: 2
 offline_log_interval: 10
 eval_every_update: 1000
 offline_updates: 500000

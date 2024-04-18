@@ -338,7 +338,7 @@ class Workspace:
         print("started offline stage")
         for offline_update in range(self.cfg.offline_updates):
             metrics = self.agent.update(self.replay_iter, self.buffer_iter, self.global_iter)
-            self._global_iter += 1
+            self._global_iter += self.cfg.offline_true_sample_rate
             self._global_step += 1
             self.logger.log_metrics(metrics, self.global_frame, ty='offline')
 
