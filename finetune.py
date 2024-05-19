@@ -1,6 +1,7 @@
 import os
 from enum import Enum
 from distutils.dir_util import copy_tree
+from omegaconf import open_dict
 
 
 import warnings
@@ -84,12 +85,15 @@ class Workspace:
             self.using_buffer = True
         if cfg.expert_buffer_dir != "":
             self.expert_buffer = Path(cfg.expert_buffer_dir)
-            if not self.buffer_dir.exists():
+            if not self.expert_buffer.exists():
                 print("expert_buffer_dir does not exist")
                 exit()
 
         print(f'workspace: {self.work_dir}')
         print(f'slurm job id: {os.environ["SLURM_JOB_ID"]}')
+        with open_dict(cfg):
+            cfg.slurm_id = os.environ['SLURM_JOB_ID']
+
 
         self.cfg = cfg
         utils.set_seed_everywhere(cfg.seed)

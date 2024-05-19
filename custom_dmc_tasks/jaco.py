@@ -79,6 +79,9 @@ TASKS = {
 
 def make(task_id, obs_type, seed):
   obs_settings = observations.VISION if obs_type == 'pixels' else observations.PERFECT_FEATURES
+  resolution = 64
+  camera_settings = observations._ENABLED_CAMERA._replace(height=resolution, width=resolution)
+  obs_settings = obs_settings._replace(camera=camera_settings)
   task = _reach(task_id, obs_settings=obs_settings, use_site=False)
   return composer.Environment(task, time_limit=_TIME_LIMIT, random_state=seed)
 
